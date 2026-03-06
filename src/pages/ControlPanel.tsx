@@ -4,6 +4,7 @@ import { useSurveyState } from '../hooks/useSurveyState';
 import SurveyList from '../components/SurveyList';
 import MotherlodePanel from '../components/MotherlodePanel';
 import Settings from '../components/Settings';
+import { CALIBRATION_KEY } from '../constants';
 
 type Mode = 'survey' | 'motherlode';
 
@@ -12,7 +13,6 @@ export default function ControlPanel() {
   const [mode, setMode] = useState<Mode>('survey');
   const [showSettings, setShowSettings] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(true);
-  const [scale, setScale] = useState(() => localStorage.getItem('gorgon-overlay-scale') ?? '0.3');
   const [zones, setZones] = useState<string[]>([]);
   const [zone, setZone] = useState('Serbule');
 
@@ -23,15 +23,8 @@ export default function ControlPanel() {
     });
   }, []);
 
-  const applyScale = () => {
-    const val = parseFloat(scale);
-    if (!isNaN(val) && val > 0) {
-      localStorage.setItem('gorgon-overlay-scale', String(val));
-    }
-  };
-
-  const clearAnchor = () => {
-    localStorage.removeItem('gorgon-overlay-anchor');
+  const recalibrate = () => {
+    localStorage.removeItem(CALIBRATION_KEY);
   };
 
   const toggleOverlay = async () => {
@@ -87,14 +80,8 @@ export default function ControlPanel() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8, fontSize: 12 }}>
-            <span style={{ whiteSpace: 'nowrap', color: '#888' }}>Scale (px/m):</span>
-            <input
-              value={scale} onChange={e => setScale(e.target.value)}
-              style={{ width: 55, padding: '2px 4px', fontSize: 12 }}
-            />
-            <button onClick={applyScale} style={{ fontSize: 12, padding: '2px 8px' }}>Set</button>
-            <button onClick={clearAnchor} style={{ fontSize: 12, padding: '2px 8px' }}>Reset pos</button>
+          <div style={{ marginBottom: 8 }}>
+            <button onClick={recalibrate} style={{ fontSize: 12, padding: '2px 8px' }}>Recalibrate Overlay</button>
           </div>
 
           <hr style={{ margin: '0 0 12px' }} />
@@ -104,8 +91,6 @@ export default function ControlPanel() {
             : <MotherlodePanel readings={state.motherlode_readings} location={state.motherlode_location} />
           }
 
-          <hr style={{ margin: '12px 0 8px' }} />
-          <button onClick={() => setShowSettings(true)} style={{ fontSize: 12 }}>&#9881; Settings</button>
         </>
       )}
     </div>

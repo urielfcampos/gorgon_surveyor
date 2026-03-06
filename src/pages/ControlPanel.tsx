@@ -11,6 +11,8 @@ export default function ControlPanel() {
   const state = useSurveyState();
   const [mode, setMode] = useState<Mode>('survey');
   const [showSettings, setShowSettings] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const [scale, setScale] = useState(() => localStorage.getItem('gorgon-overlay-scale') ?? '0.3');
   const [zones, setZones] = useState<string[]>([]);
   const [zone, setZone] = useState('Serbule');
 
@@ -20,6 +22,26 @@ export default function ControlPanel() {
       if (c.current_zone) setZone(c.current_zone);
     });
   }, []);
+
+  const applyScale = () => {
+    const val = parseFloat(scale);
+    if (!isNaN(val) && val > 0) {
+      localStorage.setItem('gorgon-overlay-scale', String(val));
+    }
+  };
+
+  const clearAnchor = () => {
+    localStorage.removeItem('gorgon-overlay-anchor');
+  };
+
+  const toggleOverlay = async () => {
+    try {
+      const visible = await invoke<boolean>('toggle_overlay_visible');
+      setOverlayVisible(visible);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const onZoneChange = async (z: string) => {
     setZone(z);
@@ -43,6 +65,9 @@ export default function ControlPanel() {
               <select value={zone} onChange={e => onZoneChange(e.target.value)}>
                 {zones.map(z => <option key={z}>{z}</option>)}
               </select>
+              <button onClick={toggleOverlay} title={overlayVisible ? 'Hide overlay' : 'Show overlay'}>
+                {overlayVisible ? 'Hide' : 'Show'}
+              </button>
               <button onClick={() => setShowSettings(true)}>&#9881;</button>
             </div>
           </div>
@@ -60,6 +85,16 @@ export default function ControlPanel() {
             >
               Motherlode
             </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8, fontSize: 12 }}>
+            <span style={{ whiteSpace: 'nowrap', color: '#888' }}>Scale (px/m):</span>
+            <input
+              value={scale} onChange={e => setScale(e.target.value)}
+              style={{ width: 55, padding: '2px 4px', fontSize: 12 }}
+            />
+            <button onClick={applyScale} style={{ fontSize: 12, padding: '2px 8px' }}>Set</button>
+            <button onClick={clearAnchor} style={{ fontSize: 12, padding: '2px 8px' }}>Reset pos</button>
           </div>
 
           <hr style={{ margin: '0 0 12px' }} />

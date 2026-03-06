@@ -38,7 +38,7 @@ impl Default for ColorsConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
-    pub log_path: String,
+    pub log_folder: String,
     pub current_zone: String,
     pub overlay: OverlayConfig,
     pub colors: ColorsConfig,
@@ -47,7 +47,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            log_path: String::new(),
+            log_folder: String::new(),
             current_zone: "Serbule".into(),
             overlay: OverlayConfig::default(),
             colors: ColorsConfig::default(),
@@ -96,9 +96,9 @@ mod tests {
     }
 
     #[test]
-    fn test_default_config_log_path_empty() {
+    fn test_default_config_log_folder_empty() {
         let config = Config::default();
-        assert!(config.log_path.is_empty());
+        assert!(config.log_folder.is_empty());
     }
 
     #[test]
@@ -108,11 +108,11 @@ mod tests {
 
         let mut config = Config::default();
         config.current_zone = "Kur Mountains".to_string();
-        config.log_path = "/some/path/chat.log".to_string();
+        config.log_folder = "/some/path/ProjectGorgon".to_string();
         config.save_to(&path).unwrap();
 
         let loaded = Config::load_from(&path).unwrap();
         assert_eq!(loaded.current_zone, "Kur Mountains");
-        assert_eq!(loaded.log_path, "/some/path/chat.log");
+        assert_eq!(loaded.log_folder, "/some/path/ProjectGorgon");
     }
 }

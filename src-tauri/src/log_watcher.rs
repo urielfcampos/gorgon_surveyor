@@ -44,9 +44,8 @@ fn handle_log_event(event: LogEvent, state: &Arc<Mutex<AppState>>, app: &AppHand
     let mut s = state.lock().unwrap();
     match event {
         LogEvent::SurveyOffset { dx, dy } => {
-            if let Some((px, py)) = s.player_position {
-                s.add_survey("".into(), px + dx, py + dy);
-            }
+            let (px, py) = s.player_position.unwrap_or((0.0, 0.0));
+            s.add_survey("".into(), px + dx, py + dy);
         }
         LogEvent::MotherlodeDistance { meters } => {
             if let Some(pos) = s.player_position {

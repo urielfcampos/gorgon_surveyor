@@ -36,14 +36,14 @@ pub fn run() {
             }
             // Auto-start watcher if log path was previously configured
             let cfg = setup_config.lock().unwrap().clone();
-            if !cfg.log_path.is_empty() {
-                let path = std::path::PathBuf::from(&cfg.log_path);
-                if path.exists() {
+            if !cfg.log_folder.is_empty() {
+                let folder = std::path::PathBuf::from(&cfg.log_folder);
+                if let Some(log_path) = commands::find_latest_log(&folder) {
                     setup_watching.store(true, Ordering::SeqCst);
                     let state_clone = setup_state.clone();
                     let handle = app.handle().clone();
                     std::thread::spawn(move || {
-                        match crate::log_watcher::start_watching(path, state_clone, handle) {
+                        match crate::log_watcher::start_watching(log_path, state_clone, handle) {
                             Ok(_w) => loop {
                                 std::thread::sleep(std::time::Duration::from_secs(60));
                             },
@@ -64,6 +64,9 @@ pub fn run() {
             commands::add_motherlode_reading,
             commands::get_zones,
             commands::start_log_watching,
+            commands::set_overlay_passthrough,
+            commands::set_player_position,
+            commands::toggle_overlay_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Gorgon Survey Tool",
+  "version": "0.1.0",
+  "identifier": "com.urielfcampos.gorgon-survey",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "control-panel",
+        "title": "Gorgon Survey Tool",
+        "width": 420,
+        "height": 720,
+        "resizable": true,
+        "visible": true,
+        "url": "index.html"
+      },
+      {
+        "label": "overlay",
+        "title": "",
+        "width": 500,
+        "height": 500,
+        "x": 100,
+        "y": 100,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "url": "index.html#/overlay"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

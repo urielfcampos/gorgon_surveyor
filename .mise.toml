@@ -1,0 +1,7 @@
+[tools]
+rust = "latest"
+node = "lts"
+"cargo:tauri-cli" = "2"
+
+[settings]
+experimental = true

@@ -50,6 +50,11 @@ impl AppState {
         }
     }
 
+    /// Set motherlode location directly from a directional offset reading.
+    pub fn set_motherlode_location(&mut self, x: f64, y: f64) {
+        self.motherlode_location = Some((x, y));
+    }
+
     pub fn clear_surveys(&mut self) {
         self.surveys.clear();
     }

@@ -1,10 +1,12 @@
 use crate::config::Config;
 use crate::state::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
 pub type SharedState = Arc<Mutex<AppState>>;
 pub type SharedConfig = Arc<Mutex<Config>>;
+pub type WatcherRunning = Arc<AtomicBool>;
 
 #[tauri::command]
 pub fn get_state(state: State<SharedState>) -> AppState {
@@ -54,12 +56,18 @@ pub async fn start_log_watching(
     log_path: String,
     state: State<'_, SharedState>,
     config: State<'_, SharedConfig>,
+    watching: State<'_, WatcherRunning>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
     let path = std::path::PathBuf::from(&log_path);
     if !path.exists() {
         return Err(format!("File not found: {}", log_path));
     }
+
+    if watching.load(Ordering::SeqCst) {
+        return Err("Already watching a log file. Restart the app to change the log path.".to_string());
+    }
+    watching.store(true, Ordering::SeqCst);
 
     // Persist log path in config
     {

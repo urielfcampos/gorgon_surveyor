@@ -23,8 +23,12 @@ export default function ControlPanel() {
 
   const onZoneChange = async (z: string) => {
     setZone(z);
-    const c = await invoke<any>('get_config');
-    invoke('save_config', { newConfig: { ...c, current_zone: z } });
+    try {
+      const c = await invoke<any>('get_config');
+      await invoke('save_config', { newConfig: { ...c, current_zone: z } });
+    } catch (e) {
+      console.error('Failed to save zone change:', e);
+    }
   };
 
   return (

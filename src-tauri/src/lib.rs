@@ -7,9 +7,10 @@ pub mod state;
 pub mod triangulator;
 pub mod zones;
 
-use commands::{SharedConfig, SharedState};
+use commands::{SharedConfig, SharedState, WatcherRunning};
 use config::Config;
 use state::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -17,14 +18,17 @@ use tauri::Manager;
 pub fn run() {
     let app_state: SharedState = Arc::new(Mutex::new(AppState::default()));
     let app_config: SharedConfig = Arc::new(Mutex::new(Config::load()));
+    let watching: WatcherRunning = Arc::new(AtomicBool::new(false));
 
     let setup_state = app_state.clone();
     let setup_config = app_config.clone();
+    let setup_watching = watching.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state.clone())
         .manage(app_config.clone())
+        .manage(watching.clone())
         .setup(move |app| {
             // Make overlay window click-through
             if let Some(overlay) = app.get_webview_window("overlay") {
@@ -35,6 +39,7 @@ pub fn run() {
             if !cfg.log_path.is_empty() {
                 let path = std::path::PathBuf::from(&cfg.log_path);
                 if path.exists() {
+                    setup_watching.store(true, Ordering::SeqCst);
                     let state_clone = setup_state.clone();
                     let handle = app.handle().clone();
                     std::thread::spawn(move || {

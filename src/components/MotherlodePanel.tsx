@@ -10,11 +10,11 @@ export default function MotherlodePanel({ readings, location }: Props) {
   const [pos, setPos] = useState({ x: '', y: '', dist: '' });
 
   const addManual = () => {
-    invoke('add_motherlode_reading', {
-      x: parseFloat(pos.x),
-      y: parseFloat(pos.y),
-      distance: parseFloat(pos.dist),
-    });
+    const x = parseFloat(pos.x);
+    const y = parseFloat(pos.y);
+    const distance = parseFloat(pos.dist);
+    if (isNaN(x) || isNaN(y) || isNaN(distance) || distance <= 0) return;
+    invoke('add_motherlode_reading', { x, y, distance });
     setPos({ x: '', y: '', dist: '' });
   };
 

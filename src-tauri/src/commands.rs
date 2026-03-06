@@ -48,3 +48,35 @@ pub fn add_motherlode_reading(x: f64, y: f64, distance: f64, state: State<Shared
 pub fn get_zones() -> Vec<String> {
     crate::zones::ZONES.iter().map(|(name, _)| name.to_string()).collect()
 }
+
+#[tauri::command]
+pub async fn start_log_watching(
+    log_path: String,
+    state: State<'_, SharedState>,
+    config: State<'_, SharedConfig>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let path = std::path::PathBuf::from(&log_path);
+    if !path.exists() {
+        return Err(format!("File not found: {}", log_path));
+    }
+
+    // Persist log path in config
+    {
+        let mut c = config.lock().unwrap();
+        c.log_path = log_path;
+        c.save().map_err(|e| e.to_string())?;
+    }
+
+    let state_arc = state.inner().clone();
+    std::thread::spawn(move || {
+        match crate::log_watcher::start_watching(path, state_arc, app) {
+            Ok(_watcher) => loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            },
+            Err(e) => eprintln!("Log watcher error: {e}"),
+        }
+    });
+
+    Ok(())
+}

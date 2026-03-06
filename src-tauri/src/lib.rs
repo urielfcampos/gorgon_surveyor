@@ -1,4 +1,5 @@
 pub mod config;
+pub mod log_parser;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]

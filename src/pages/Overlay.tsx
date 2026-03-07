@@ -234,13 +234,11 @@ export default function Overlay() {
       ctx.arc(cx, cy, 9, 0, Math.PI * 2);
       ctx.fillStyle = uncollected;
       ctx.fill();
-      if (survey.route_order !== null) {
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(survey.route_order), cx, cy);
-      }
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(survey.survey_number), cx, cy);
     }
 
     // Motherlode distance circles

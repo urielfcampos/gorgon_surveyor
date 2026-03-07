@@ -17,7 +17,8 @@ export default function SurveyList({ surveys }: { surveys: Survey[] }) {
         {active.map(s => (
           <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #eee' }}>
             <span>
-              <b style={{ color: '#FFAA00' }}>#{s.route_order}</b>{' '}
+              <b style={{ color: '#FFAA00' }}>#{s.survey_number}</b>{' '}
+              <span style={{ color: '#888', fontSize: 11 }}>path:{s.route_order}</span>{' '}
               ({Math.round(s.x)}, {Math.round(s.y)})
             </span>
             <button onClick={() => invoke('skip_survey', { id: s.id })} style={{ fontSize: 12 }}>Skip</button>

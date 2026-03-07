@@ -8,6 +8,7 @@ export interface Survey {
   x: number;
   y: number;
   collected: boolean;
+  survey_number: number;
   route_order: number | null;
 }
 

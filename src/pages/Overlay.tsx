@@ -68,7 +68,9 @@ export default function Overlay() {
     const parsed = JSON.parse(saved);
     // Migrate old single-scale calibration
     if ('scale' in parsed && !('scaleX' in parsed)) {
-      return { anchor: parsed.anchor, scaleX: parsed.scale, scaleY: parsed.scale };
+      const migrated = { anchor: parsed.anchor, scaleX: parsed.scale, scaleY: parsed.scale };
+      localStorage.setItem(CALIBRATION_KEY, JSON.stringify(migrated));
+      return migrated;
     }
     return parsed;
   });
@@ -138,7 +140,6 @@ export default function Overlay() {
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
     const click = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    console.log('[CAL CLICK]', { calStep, clientX: e.clientX, clientY: e.clientY, rectLeft: rect.left, rectTop: rect.top, clickX: click.x, clickY: click.y, target: (e.target as HTMLElement).tagName });
 
     if (calStep === 'click_player') {
       setPlayerClick(click);
@@ -149,11 +150,13 @@ export default function Overlay() {
     if (calStep === 'click_survey' && playerClick && calibratingSurvey) {
       const dx = click.x - playerClick.x;
       const dy = playerClick.y - click.y; // flip: screen y is inverted vs game y
-      if (Math.abs(calibratingSurvey.x) < 1 || Math.abs(calibratingSurvey.y) < 1) return;
-      const scaleX = dx / calibratingSurvey.x;
-      const scaleY = dy / calibratingSurvey.y;
+      if (Math.abs(calibratingSurvey.x) < 1 && Math.abs(calibratingSurvey.y) < 1) return;
+      // Compute per-axis scale; fall back to the other axis if one is near zero (cardinal direction)
+      const rawScaleX = Math.abs(calibratingSurvey.x) < 1 ? null : dx / calibratingSurvey.x;
+      const rawScaleY = Math.abs(calibratingSurvey.y) < 1 ? null : dy / calibratingSurvey.y;
+      const scaleX = rawScaleX ?? rawScaleY!;
+      const scaleY = rawScaleY ?? rawScaleX!;
       const newCal: Calibration = { anchor: playerClick, scaleX, scaleY };
-      console.log('[CAL COMPLETE]', { anchor: playerClick, scaleX, scaleY, surveyGameCoords: calibratingSurvey });
       setCalibration(newCal);
       setCalStep('calibrated');
       localStorage.setItem(CALIBRATION_KEY, JSON.stringify(newCal));
@@ -239,13 +242,11 @@ export default function Overlay() {
       ctx.fillText(String(survey.survey_number), cx, cy);
     }
 
-    // Motherlode distance circles
+    // Motherlode distance ellipses
     for (const [[px, py], dist] of state.motherlode_readings) {
       const [cx, cy] = surveyToCanvas(px, py, anchor, scaleX, scaleY);
-      const avgScale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
-      const scaledR = dist * avgScale;
       ctx.beginPath();
-      ctx.arc(cx, cy, scaledR, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, dist * Math.abs(scaleX), dist * Math.abs(scaleY), 0, 0, Math.PI * 2);
       ctx.strokeStyle = motherlode + '88';
       ctx.lineWidth = 1.5;
       ctx.stroke();
@@ -268,7 +269,7 @@ export default function Overlay() {
     }
 
     // Anchor marker removed — it ghosts on WebKitGTK transparent windows
-  }, [state, config, calibration, calStep, playerClick, size]);
+  }, [state, config, calibration, calStep, size]);
 
   return (
     <div style={{
@@ -315,8 +316,8 @@ export default function Overlay() {
               position: 'absolute',
               left: playerClick.x - 5, top: playerClick.y - 5,
               width: 10, height: 10, borderRadius: '50%',
-              background: 'rgba(255,0,0,0.9)',
-              border: '2px solid #fff',
+              background: 'rgba(255,255,0,0.9)',
+              border: '1px solid #000',
               pointerEvents: 'none', zIndex: 5,
             }} />
           )}

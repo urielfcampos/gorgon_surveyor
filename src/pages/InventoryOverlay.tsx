@@ -198,7 +198,7 @@ export default function InventoryOverlay() {
       ctx.textBaseline = 'middle';
       ctx.fillText(String(active[i].route_order), cx, cy);
     }
-  }, [state, cal, calStep, columns, startSlot, topLeft, size]);
+  }, [state, cal, calStep, columns, startSlot, size]);
 
   return (
     <div style={{

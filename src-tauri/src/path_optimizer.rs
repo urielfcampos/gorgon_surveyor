@@ -1,3 +1,5 @@
+use crate::math::distance_squared;
+
 /// Returns the indices of `points` in the order a nearest-neighbor TSP heuristic visits them,
 /// starting from `start`.
 pub fn optimize_path(start: (f64, f64), points: &[(f64, f64)]) -> Vec<usize> {
@@ -14,8 +16,8 @@ pub fn optimize_path(start: (f64, f64), points: &[(f64, f64)]) -> Vec<usize> {
             .iter()
             .enumerate()
             .min_by(|(_, &a), (_, &b)| {
-                euclidean(current, points[a])
-                    .partial_cmp(&euclidean(current, points[b]))
+                distance_squared(current, points[a])
+                    .partial_cmp(&distance_squared(current, points[b]))
                     .unwrap()
             })
             .map(|(i, _)| i)
@@ -27,12 +29,6 @@ pub fn optimize_path(start: (f64, f64), points: &[(f64, f64)]) -> Vec<usize> {
     }
 
     order
-}
-
-fn euclidean(a: (f64, f64), b: (f64, f64)) -> f64 {
-    let dx = a.0 - b.0;
-    let dy = a.1 - b.1;
-    (dx * dx + dy * dy).sqrt()
 }
 
 #[cfg(test)]

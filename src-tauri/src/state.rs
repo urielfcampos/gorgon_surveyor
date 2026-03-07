@@ -12,6 +12,9 @@ pub struct Survey {
     pub x: f64,
     pub y: f64,
     pub collected: bool,
+    /// Original insertion order (1-based), stable across route recalculations.
+    pub survey_number: usize,
+    /// Optimized path order (1-based), recalculated when surveys change.
     pub route_order: Option<usize>,
 }
 
@@ -21,16 +24,19 @@ pub struct AppState {
     pub motherlode_readings: Vec<((f64, f64), f64)>,
     pub motherlode_location: Option<(f64, f64)>,
     pub player_position: Option<(f64, f64)>,
+    next_survey_number: usize,
 }
 
 impl AppState {
     pub fn add_survey(&mut self, zone: String, x: f64, y: f64) {
+        self.next_survey_number += 1;
         self.surveys.push(Survey {
             id: NEXT_ID.fetch_add(1, Ordering::SeqCst),
             zone,
             x,
             y,
             collected: false,
+            survey_number: self.next_survey_number,
             route_order: None,
         });
         self.recalculate_route();
@@ -57,6 +63,7 @@ impl AppState {
 
     pub fn clear_surveys(&mut self) {
         self.surveys.clear();
+        self.next_survey_number = 0;
     }
 
     pub fn clear_motherlode(&mut self) {

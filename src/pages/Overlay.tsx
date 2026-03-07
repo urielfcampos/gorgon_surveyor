@@ -4,19 +4,17 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useSurveyState } from '../hooks/useSurveyState';
+import { CALIBRATION_KEY } from '../constants';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
-
-const ANCHOR_KEY = 'gorgon-overlay-anchor';
-const SCALE_KEY = 'gorgon-overlay-scale';
-const DEFAULT_SCALE = 0.3;
 
 interface Config {
   current_zone: string;
   colors: { uncollected: string; collected: string; waypoint: string; motherlode: string };
 }
 
-interface Anchor { x: number; y: number; }
+interface Calibration { anchor: { x: number; y: number }; scale: number; }
+type CalibrationStep = 'waiting_for_survey' | 'click_player' | 'click_survey' | 'calibrated';
 
 const HANDLES: { dir: ResizeDirection; style: React.CSSProperties }[] = [
   { dir: 'NorthWest', style: { top: -4,    left: -4,    cursor: 'nw-resize' } },
@@ -56,7 +54,7 @@ function ResizeHandles() {
   );
 }
 
-function surveyToCanvas(gx: number, gy: number, anchor: Anchor, scale: number): [number, number] {
+function surveyToCanvas(gx: number, gy: number, anchor: { x: number; y: number }, scale: number): [number, number] {
   return [anchor.x + gx * scale, anchor.y - gy * scale];
 }
 
@@ -64,14 +62,16 @@ export default function Overlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const state = useSurveyState();
   const [config, setConfig] = useState<Config | null>(null);
-  const [anchor, setAnchor] = useState<Anchor | null>(() => {
-    const saved = localStorage.getItem(ANCHOR_KEY);
+  const [calibration, setCalibration] = useState<Calibration | null>(() => {
+    const saved = localStorage.getItem(CALIBRATION_KEY);
     return saved ? JSON.parse(saved) : null;
   });
-  const [scale, setScale] = useState<number>(() => {
-    const saved = localStorage.getItem(SCALE_KEY);
-    return saved ? parseFloat(saved) : DEFAULT_SCALE;
+  const [calStep, setCalStep] = useState<CalibrationStep>(() => {
+    const saved = localStorage.getItem(CALIBRATION_KEY);
+    return saved ? 'calibrated' : 'waiting_for_survey';
   });
+  const [playerClick, setPlayerClick] = useState<{ x: number; y: number } | null>(null);
+  const [calibratingSurvey, setCalibratingSurvey] = useState<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -94,11 +94,29 @@ export default function Overlay() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
-  // Pick up scale/anchor changes made from the ControlPanel window
+  // Auto-transition from waiting_for_survey to click_player
+  useEffect(() => {
+    if (calStep !== 'waiting_for_survey') return;
+    const uncollected = state.surveys.filter(s => !s.collected);
+    if (uncollected.length > 0) {
+      const latest = uncollected[uncollected.length - 1];
+      setCalibratingSurvey({ x: latest.x, y: latest.y });
+      setCalStep('click_player');
+    }
+  }, [calStep, state.surveys]);
+
+  // Pick up calibration changes made from the ControlPanel window
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === SCALE_KEY && e.newValue) setScale(parseFloat(e.newValue));
-      if (e.key === ANCHOR_KEY) setAnchor(e.newValue ? JSON.parse(e.newValue) : null);
+      if (e.key === CALIBRATION_KEY) {
+        if (e.newValue) {
+          setCalibration(JSON.parse(e.newValue));
+          setCalStep('calibrated');
+        } else {
+          setCalibration(null);
+          setCalStep('waiting_for_survey');
+        }
+      }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -106,14 +124,32 @@ export default function Overlay() {
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-    const newAnchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setAnchor(newAnchor);
-    localStorage.setItem(ANCHOR_KEY, JSON.stringify(newAnchor));
-  }, []);
+    const click = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+    if (calStep === 'click_player') {
+      setPlayerClick(click);
+      setCalStep('click_survey');
+      return;
+    }
+
+    if (calStep === 'click_survey' && playerClick && calibratingSurvey) {
+      const pixelDist = Math.hypot(click.x - playerClick.x, click.y - playerClick.y);
+      const meterDist = Math.hypot(calibratingSurvey.x, calibratingSurvey.y);
+      if (meterDist < 1) return;
+      const scale = pixelDist / meterDist;
+      const newCal: Calibration = { anchor: playerClick, scale };
+      setCalibration(newCal);
+      setCalStep('calibrated');
+      localStorage.setItem(CALIBRATION_KEY, JSON.stringify(newCal));
+      setPlayerClick(null);
+      setCalibratingSurvey(null);
+      return;
+    }
+  }, [calStep, playerClick, calibratingSurvey]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!anchor) return;
+    if (!calibration) return;
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
@@ -121,7 +157,7 @@ export default function Overlay() {
     let closest: { id: number; dist: number } | null = null;
     for (const survey of state.surveys) {
       if (survey.collected) continue;
-      const [cx, cy] = surveyToCanvas(survey.x, survey.y, anchor, scale);
+      const [cx, cy] = surveyToCanvas(survey.x, survey.y, calibration.anchor, calibration.scale);
       const dist = Math.hypot(clickX - cx, clickY - cy);
       if (dist <= HIT_RADIUS && (!closest || dist < closest.dist)) {
         closest = { id: survey.id, dist };
@@ -130,7 +166,7 @@ export default function Overlay() {
     if (closest) {
       invoke('skip_survey', { id: closest.id }).catch(console.error);
     }
-  }, [anchor, scale, state.surveys]);
+  }, [calibration, state.surveys]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -142,15 +178,32 @@ export default function Overlay() {
     const H = canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    if (!anchor) {
+    if (calStep !== 'calibrated' || !calibration) {
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('Click to mark your position', W / 2, H / 2);
+      if (calStep === 'waiting_for_survey') {
+        ctx.fillText('Waiting for survey data...', W / 2, H / 2);
+      } else if (calStep === 'click_player') {
+        ctx.fillText('Click YOUR position on the map', W / 2, H / 2);
+      } else if (calStep === 'click_survey') {
+        ctx.fillText('Now click the SURVEY location', W / 2, H / 2);
+        // Draw player click marker during click_survey step
+        if (playerClick) {
+          ctx.beginPath();
+          ctx.arc(playerClick.x, playerClick.y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,0,0.9)';
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
       return;
     }
 
+    const { anchor, scale } = calibration;
     const { uncollected, waypoint, motherlode } = config.colors;
 
     // Route lines
@@ -181,13 +234,11 @@ export default function Overlay() {
       ctx.arc(cx, cy, 9, 0, Math.PI * 2);
       ctx.fillStyle = uncollected;
       ctx.fill();
-      if (survey.route_order !== null) {
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(survey.route_order), cx, cy);
-      }
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(survey.survey_number), cx, cy);
     }
 
     // Motherlode distance circles
@@ -225,7 +276,7 @@ export default function Overlay() {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
     ctx.stroke();
-  }, [state, config, anchor, scale, size]);
+  }, [state, config, calibration, calStep, playerClick, size]);
 
   return (
     <div style={{

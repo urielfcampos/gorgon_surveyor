@@ -2,6 +2,7 @@ pub mod commands;
 pub mod config;
 pub mod log_parser;
 pub mod log_watcher;
+pub mod math;
 pub mod path_optimizer;
 pub mod state;
 pub mod triangulator;

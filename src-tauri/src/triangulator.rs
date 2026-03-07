@@ -1,3 +1,5 @@
+use crate::math::distance;
+
 /// Given 3+ (position, distance) readings, return the estimated target point.
 /// Uses circle-circle intersection. Returns None if geometry fails or < 3 readings.
 pub fn triangulate(readings: &[((f64, f64), f64)]) -> Option<(f64, f64)> {
@@ -9,8 +11,8 @@ pub fn triangulate(readings: &[((f64, f64), f64)]) -> Option<(f64, f64)> {
     candidates
         .into_iter()
         .min_by(|&(ax, ay), &(bx, by)| {
-            let da = (euclidean((ax, ay), (x3, y3)) - r3).abs();
-            let db = (euclidean((bx, by), (x3, y3)) - r3).abs();
+            let da = (distance((ax, ay), (x3, y3)) - r3).abs();
+            let db = (distance((bx, by), (x3, y3)) - r3).abs();
             da.partial_cmp(&db).unwrap()
         })
 }
@@ -19,7 +21,7 @@ fn circle_intersections(
     ((x1, y1), r1): ((f64, f64), f64),
     ((x2, y2), r2): ((f64, f64), f64),
 ) -> Option<Vec<(f64, f64)>> {
-    let d = euclidean((x1, y1), (x2, y2));
+    let d = distance((x1, y1), (x2, y2));
     if d > r1 + r2 || d < (r1 - r2).abs() || d < 1e-9 {
         return None;
     }
@@ -42,17 +44,9 @@ fn circle_intersections(
     ])
 }
 
-fn euclidean(a: (f64, f64), b: (f64, f64)) -> f64 {
-    ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
-        ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
-    }
 
     #[test]
     fn test_needs_three_readings() {
@@ -63,9 +57,9 @@ mod tests {
     fn test_triangulates_known_point() {
         let target = (100.0f64, 100.0);
         let readings = vec![
-            ((0.0, 0.0), dist(target, (0.0, 0.0))),
-            ((200.0, 0.0), dist(target, (200.0, 0.0))),
-            ((100.0, 200.0), dist(target, (100.0, 200.0))),
+            ((0.0, 0.0), distance(target, (0.0, 0.0))),
+            ((200.0, 0.0), distance(target, (200.0, 0.0))),
+            ((100.0, 200.0), distance(target, (100.0, 200.0))),
         ];
         let result = triangulate(&readings).unwrap();
         assert!((result.0 - target.0).abs() < 0.01, "x off: {}", result.0);
@@ -76,9 +70,9 @@ mod tests {
     fn test_triangulates_negative_coords() {
         let target = (-300.0f64, -150.0);
         let readings = vec![
-            ((0.0, 0.0), dist(target, (0.0, 0.0))),
-            ((-600.0, 0.0), dist(target, (-600.0, 0.0))),
-            ((-300.0, -400.0), dist(target, (-300.0, -400.0))),
+            ((0.0, 0.0), distance(target, (0.0, 0.0))),
+            ((-600.0, 0.0), distance(target, (-600.0, 0.0))),
+            ((-300.0, -400.0), distance(target, (-300.0, -400.0))),
         ];
         let result = triangulate(&readings).unwrap();
         assert!((result.0 - target.0).abs() < 0.01);

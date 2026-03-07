@@ -35,6 +35,9 @@ pub fn run() {
             if let Some(overlay) = app.get_webview_window("overlay") {
                 overlay.set_ignore_cursor_events(true).ok();
             }
+            if let Some(inv_overlay) = app.get_webview_window("inventory-overlay") {
+                inv_overlay.set_ignore_cursor_events(true).ok();
+            }
             // Auto-start watcher if log path was previously configured
             let cfg = setup_config.lock().unwrap().clone();
             if !cfg.log_folder.is_empty() {

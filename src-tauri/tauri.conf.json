@@ -33,6 +33,20 @@
         "skipTaskbar": true,
         "resizable": true,
         "url": "index.html#/overlay"
+      },
+      {
+        "label": "inventory-overlay",
+        "title": "",
+        "width": 600,
+        "height": 400,
+        "x": 200,
+        "y": 200,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "url": "index.html#/inventory-overlay"
       }
     ],
     "security": {

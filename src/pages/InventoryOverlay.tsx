@@ -76,6 +76,8 @@ export default function InventoryOverlay() {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.background = 'transparent';
     document.body.style.overflow = 'hidden';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
   }, []);
 
   useEffect(() => {
@@ -203,8 +205,8 @@ export default function InventoryOverlay() {
       width: '100vw', height: '100vh',
       background: 'transparent',
       pointerEvents: 'none',
-      boxSizing: 'border-box',
-      border: '2px solid rgba(255, 220, 0, 0.6)',
+      outline: '2px solid rgba(255, 220, 0, 0.6)',
+      outlineOffset: -2,
     }}>
       <div
         onMouseDown={() => getCurrentWindow().startDragging().catch(console.error)}

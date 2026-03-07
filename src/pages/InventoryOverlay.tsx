@@ -84,10 +84,9 @@ export default function InventoryOverlay() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Toggle click-through based on calibration state
+  // Disable click-through during calibration so canvas receives clicks
   useEffect(() => {
-    const passthrough = calStep === 'calibrated';
-    invoke('set_inventory_overlay_passthrough', { enabled: passthrough }).catch(console.error);
+    invoke('set_inventory_overlay_passthrough', { enabled: calStep === 'calibrated' }).catch(console.error);
   }, [calStep]);
 
   // Sync config from ControlPanel via localStorage
@@ -112,18 +111,18 @@ export default function InventoryOverlay() {
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
     const click = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-
     if (calStep === 'click_top_left') {
       setTopLeft(click);
       setCalStep('click_bottom_right');
       return;
     }
 
-    if (calStep === 'click_bottom_right' && topLeft) {
+    if (calStep === 'click_bottom_right') {
+      if (!topLeft) return;
       const w = Math.abs(click.x - topLeft.x);
       const h = Math.abs(click.y - topLeft.y);
       if (w < 5 || h < 5) return; // too small, ignore
-      const newCal: SlotCal = { x: topLeft.x, y: topLeft.y, w, h };
+      const newCal: SlotCal = { x: Math.min(topLeft.x, click.x), y: Math.min(topLeft.y, click.y), w, h };
       setCal(newCal);
       setCalStep('calibrated');
       localStorage.setItem(INV_CAL_KEY, JSON.stringify(newCal));
@@ -141,30 +140,38 @@ export default function InventoryOverlay() {
 
     const W = canvas.width;
     const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
+    // On WebKitGTK with transparent windows, clearRect alone doesn't
+    // properly erase previous frames. Force a full opaque-then-clear cycle.
+    ctx.globalCompositeOperation = 'copy';
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
 
-    if (calStep !== 'calibrated' || !cal) {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (calStep === 'click_top_left') {
-        ctx.fillText('Click TOP-LEFT corner of a slot', W / 2, H / 2);
-      } else if (calStep === 'click_bottom_right') {
-        ctx.fillText('Click BOTTOM-RIGHT corner of the same slot', W / 2, H / 2);
-        if (topLeft) {
-          ctx.beginPath();
-          ctx.arc(topLeft.x, topLeft.y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,0,0.9)';
-          ctx.fill();
-        }
-      }
-      return;
-    }
+    if (calStep !== 'calibrated' || !cal) return;
 
     const active = state.surveys
       .filter(s => !s.collected)
       .sort((a, b) => a.route_order! - b.route_order!);
+
+    // Draw calibration grid preview (faint lines showing slot boundaries)
+    const maxCols = columns;
+    const maxRows = Math.ceil(active.length / columns) + 1;
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.15)';
+    ctx.lineWidth = 1;
+    for (let c = 0; c <= maxCols; c++) {
+      const gx = cal.x + c * cal.w;
+      ctx.beginPath();
+      ctx.moveTo(gx, cal.y);
+      ctx.lineTo(gx, cal.y + maxRows * cal.h);
+      ctx.stroke();
+    }
+    for (let r = 0; r <= maxRows; r++) {
+      const gy = cal.y + r * cal.h;
+      ctx.beginPath();
+      ctx.moveTo(cal.x, gy);
+      ctx.lineTo(cal.x + maxCols * cal.w, gy);
+      ctx.stroke();
+    }
 
     for (let i = 0; i < active.length; i++) {
       const slotIndex = (startSlot - 1) + i; // 0-based
@@ -200,6 +207,7 @@ export default function InventoryOverlay() {
       border: '2px solid rgba(255, 220, 0, 0.6)',
     }}>
       <div
+        onMouseDown={() => getCurrentWindow().startDragging().catch(console.error)}
         style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 22,
           background: 'rgba(255, 220, 0, 0.35)',
@@ -208,22 +216,48 @@ export default function InventoryOverlay() {
           fontSize: 11, fontFamily: 'sans-serif', userSelect: 'none', zIndex: 10,
           color: 'rgba(255,255,255,0.8)',
         }}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        {...{ 'data-tauri-drag-region': true } as any}
       >
         INV
       </div>
-      <canvas
-        ref={canvasRef}
-        width={size.w}
-        height={size.h}
-        style={{
-          display: 'block',
-          pointerEvents: 'auto',
-          cursor: 'crosshair',
-        }}
-        onClick={handleCanvasClick}
-      />
+      {calStep !== 'calibrated' ? (
+        <>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#fff',
+            font: 'bold 14px sans-serif',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            zIndex: 5,
+            background: 'rgba(0, 0, 0, 0.75)',
+            padding: '8px 16px',
+            borderRadius: 6,
+          }}>
+            {calStep === 'click_top_left' && 'Click TOP-LEFT corner of a slot'}
+            {calStep === 'click_bottom_right' && 'Click BOTTOM-RIGHT corner of the same slot'}
+          </div>
+          {topLeft && calStep === 'click_bottom_right' && (
+            <div style={{
+              position: 'absolute',
+              left: topLeft.x - 4, top: topLeft.y - 4,
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'rgba(255,255,0,0.9)',
+              pointerEvents: 'none', zIndex: 5,
+            }} />
+          )}
+          <div
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'auto', cursor: 'crosshair' }}
+            onClick={handleCanvasClick}
+          />
+        </>
+      ) : (
+        <canvas
+          ref={canvasRef}
+          width={size.w}
+          height={size.h}
+          style={{ display: 'block' }}
+        />
+      )}
       <ResizeHandles />
     </div>
   );

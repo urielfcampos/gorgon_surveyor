@@ -22,7 +22,7 @@
       },
       {
         "label": "overlay",
-        "title": "",
+        "title": "Survey Overlay",
         "width": 500,
         "height": 500,
         "x": 100,
@@ -36,7 +36,7 @@
       },
       {
         "label": "inventory-overlay",
-        "title": "",
+        "title": "Inventory Overlay",
         "width": 600,
         "height": 400,
         "x": 200,

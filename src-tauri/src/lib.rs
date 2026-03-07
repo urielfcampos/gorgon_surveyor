@@ -31,7 +31,9 @@ pub fn run() {
         .manage(app_config.clone())
         .manage(watching.clone())
         .setup(move |app| {
-            // Make overlay window click-through
+            // Enable click-through on overlay windows. This is required on Linux
+            // for data-tauri-drag-region to work on transparent windows.
+            // The frontend temporarily disables it during calibration.
             if let Some(overlay) = app.get_webview_window("overlay") {
                 overlay.set_ignore_cursor_events(true).ok();
             }

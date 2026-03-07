@@ -94,10 +94,9 @@ export default function Overlay() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
-  // Toggle click-through based on calibration state
+  // Disable click-through during calibration so canvas receives clicks
   useEffect(() => {
-    const passthrough = calStep === 'calibrated';
-    invoke('set_overlay_passthrough', { enabled: passthrough }).catch(console.error);
+    invoke('set_overlay_passthrough', { enabled: calStep === 'calibrated' }).catch(console.error);
   }, [calStep]);
 
   // Auto-transition from waiting_for_survey to click_player
@@ -182,32 +181,14 @@ export default function Overlay() {
 
     const W = canvas.width;
     const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
+    // On WebKitGTK with transparent windows, clearRect alone doesn't
+    // properly erase previous frames. Force a full opaque-then-clear cycle.
+    ctx.globalCompositeOperation = 'copy';
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
 
-    if (calStep !== 'calibrated' || !calibration) {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (calStep === 'waiting_for_survey') {
-        ctx.fillText('Waiting for survey data...', W / 2, H / 2);
-      } else if (calStep === 'click_player') {
-        ctx.fillText('Click YOUR position on the map', W / 2, H / 2);
-      } else if (calStep === 'click_survey') {
-        ctx.fillText('Now click the SURVEY location', W / 2, H / 2);
-        // Draw player click marker during click_survey step
-        if (playerClick) {
-          ctx.beginPath();
-          ctx.arc(playerClick.x, playerClick.y, 5, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,0,0.9)';
-          ctx.fill();
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
-      return;
-    }
+    if (calStep !== 'calibrated' || !calibration) return;
 
     const { anchor, scale } = calibration;
     const { uncollected, waypoint, motherlode } = config.colors;
@@ -301,23 +282,52 @@ export default function Overlay() {
           fontSize: 11, fontFamily: 'sans-serif', userSelect: 'none', zIndex: 10,
           color: 'rgba(255,255,255,0.8)',
         }}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        {...{ 'data-tauri-drag-region': true } as any}
+        onMouseDown={() => getCurrentWindow().startDragging().catch(console.error)}
       >
         ⠿
       </div>
-      <canvas
-        ref={canvasRef}
-        width={size.w}
-        height={size.h}
-        style={{
-          display: 'block',
-          pointerEvents: 'auto',
-          cursor: 'crosshair',
-        }}
-        onClick={handleCanvasClick}
-        onContextMenu={handleContextMenu}
-      />
+      {calStep !== 'calibrated' ? (
+        <>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#fff',
+            font: 'bold 14px sans-serif',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            zIndex: 5,
+            background: 'rgba(0, 0, 0, 0.75)',
+            padding: '8px 16px',
+            borderRadius: 6,
+          }}>
+            {calStep === 'waiting_for_survey' && 'Waiting for survey data...'}
+            {calStep === 'click_player' && 'Click YOUR position on the map'}
+            {calStep === 'click_survey' && 'Now click the SURVEY location'}
+          </div>
+          {playerClick && calStep === 'click_survey' && (
+            <div style={{
+              position: 'absolute',
+              left: playerClick.x - 5, top: playerClick.y - 5,
+              width: 10, height: 10, borderRadius: '50%',
+              background: 'rgba(255,255,0,0.9)',
+              border: '1px solid #000',
+              pointerEvents: 'none', zIndex: 5,
+            }} />
+          )}
+          <div
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'auto', cursor: 'crosshair' }}
+            onClick={handleCanvasClick}
+          />
+        </>
+      ) : (
+        <canvas
+          ref={canvasRef}
+          width={size.w}
+          height={size.h}
+          style={{ display: 'block', pointerEvents: 'auto', cursor: 'default' }}
+          onContextMenu={handleContextMenu}
+        />
+      )}
       <ResizeHandles />
     </div>
   );

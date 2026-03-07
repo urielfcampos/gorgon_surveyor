@@ -149,6 +149,22 @@ export default function ControlPanel() {
               location={state.motherlode_location}
             />
           )}
+
+          <hr style={{ margin: '12px 0 8px' }} />
+          <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>Inventory Overlay</h4>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6, fontSize: 12 }}>
+            <span style={{ color: '#888' }}>Cols:</span>
+            <input value={invColumns} onChange={e => setInvColumns(e.target.value)}
+              style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
+            <span style={{ color: '#888' }}>Start slot:</span>
+            <input value={invStartSlot} onChange={e => setInvStartSlot(e.target.value)}
+              style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
+            <button onClick={applyInvConfig} style={{ fontSize: 12, padding: '2px 8px' }}>Set</button>
+          </div>
+          <div style={{ display: 'flex', gap: 4, fontSize: 12 }}>
+            <button onClick={toggleInvOverlay}>{invOverlayVisible ? 'Hide' : 'Show'} Inv Overlay</button>
+            <button onClick={recalibrateInv}>Recalibrate Inv</button>
+          </div>
         </>
       )}
     </div>

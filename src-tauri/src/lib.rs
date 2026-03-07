@@ -71,6 +71,7 @@ pub fn run() {
             commands::set_overlay_passthrough,
             commands::set_player_position,
             commands::toggle_overlay_visible,
+            commands::toggle_inventory_overlay_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

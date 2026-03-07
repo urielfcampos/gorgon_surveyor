@@ -108,6 +108,21 @@ pub fn toggle_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub fn toggle_inventory_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("inventory-overlay") {
+        let visible = window.is_visible().map_err(|e| e.to_string())?;
+        if visible {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+        }
+        Ok(!visible)
+    } else {
+        Err("Inventory overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
 pub async fn start_log_watching(
     log_folder: String,
     state: State<'_, SharedState>,

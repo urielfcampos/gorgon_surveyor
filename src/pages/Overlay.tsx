@@ -94,6 +94,12 @@ export default function Overlay() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
+  // Toggle click-through based on calibration state
+  useEffect(() => {
+    const passthrough = calStep === 'calibrated';
+    invoke('set_overlay_passthrough', { enabled: passthrough }).catch(console.error);
+  }, [calStep]);
+
   // Auto-transition from waiting_for_survey to click_player
   useEffect(() => {
     if (calStep !== 'waiting_for_survey') return;

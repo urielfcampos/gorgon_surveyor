@@ -93,6 +93,16 @@ pub fn set_overlay_passthrough(enabled: bool, app: tauri::AppHandle) -> Result<(
 }
 
 #[tauri::command]
+pub fn set_inventory_overlay_passthrough(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("inventory-overlay") {
+        window.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Inventory overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
 pub fn toggle_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window("overlay") {
         let visible = window.is_visible().map_err(|e| e.to_string())?;

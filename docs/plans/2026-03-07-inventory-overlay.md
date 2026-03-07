@@ -1,5 +1,124 @@
+# Inventory Overlay Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Add a third Tauri window that overlays numbered survey tags on inventory grid slots.
+
+**Architecture:** New `inventory-overlay` window (transparent, always-on-top, click-through) renders a canvas with numbered tags positioned on a calibrated grid. Two-click calibration derives slot size. Config (columns, starting slot) stored in localStorage and synced cross-window. Active surveys fill consecutive slots; collected surveys shift remaining tags.
+
+**Tech Stack:** Tauri 2.x window config, React canvas rendering, localStorage for calibration/config sync.
+
+---
+
+### Task 1: Add inventory-overlay window to Tauri config
+
+**Files:**
+- Modify: `src-tauri/tauri.conf.json:13-37`
+- Modify: `src-tauri/src/lib.rs:34-36`
+
+**Step 1: Add window definition to tauri.conf.json**
+
+Add after the existing `overlay` window entry (after line 36, before the closing `]`):
+
+```json
+,
+{
+  "label": "inventory-overlay",
+  "title": "",
+  "width": 600,
+  "height": 400,
+  "x": 200,
+  "y": 200,
+  "decorations": false,
+  "transparent": true,
+  "alwaysOnTop": true,
+  "skipTaskbar": true,
+  "resizable": true,
+  "url": "index.html#/inventory-overlay"
+}
+```
+
+**Step 2: Set click-through on the new window in lib.rs**
+
+In `lib.rs` setup closure, after the existing overlay click-through block (line 36), add:
+
+```rust
+if let Some(inv_overlay) = app.get_webview_window("inventory-overlay") {
+    inv_overlay.set_ignore_cursor_events(true).ok();
+}
+```
+
+**Step 3: Verify it compiles**
+
+Run: `cd src-tauri && mise exec -- cargo check`
+Expected: compiles with no errors
+
+**Step 4: Commit**
+
+```bash
+git add src-tauri/tauri.conf.json src-tauri/src/lib.rs
+git commit -m "feat: add inventory-overlay window to Tauri config"
+```
+
+---
+
+### Task 2: Add toggle command for inventory overlay
+
+**Files:**
+- Modify: `src-tauri/src/commands.rs`
+- Modify: `src-tauri/src/lib.rs:57-70`
+
+**Step 1: Add toggle_inventory_overlay_visible command**
+
+In `commands.rs`, after the existing `toggle_overlay_visible` function (after line 100), add:
+
+```rust
+#[tauri::command]
+pub fn toggle_inventory_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("inventory-overlay") {
+        let visible = window.is_visible().map_err(|e| e.to_string())?;
+        if visible {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+        }
+        Ok(!visible)
+    } else {
+        Err("Inventory overlay window not found".to_string())
+    }
+}
+```
+
+**Step 2: Register the command in lib.rs**
+
+Add `commands::toggle_inventory_overlay_visible,` to the `invoke_handler` list.
+
+**Step 3: Verify it compiles**
+
+Run: `cd src-tauri && mise exec -- cargo check`
+Expected: compiles with no errors
+
+**Step 4: Commit**
+
+```bash
+git add src-tauri/src/commands.rs src-tauri/src/lib.rs
+git commit -m "feat: add toggle command for inventory overlay visibility"
+```
+
+---
+
+### Task 3: Add route and InventoryOverlay page scaffold
+
+**Files:**
+- Modify: `src/main.tsx:1-17`
+- Create: `src/pages/InventoryOverlay.tsx`
+
+**Step 1: Create the InventoryOverlay page**
+
+Create `src/pages/InventoryOverlay.tsx`:
+
+```tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSurveyState } from '../hooks/useSurveyState';
 
@@ -83,12 +202,6 @@ export default function InventoryOverlay() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  // Toggle click-through based on calibration state
-  useEffect(() => {
-    const passthrough = calStep === 'calibrated';
-    invoke('set_inventory_overlay_passthrough', { enabled: passthrough }).catch(console.error);
-  }, [calStep]);
 
   // Sync config from ControlPanel via localStorage
   useEffect(() => {
@@ -228,3 +341,132 @@ export default function InventoryOverlay() {
     </div>
   );
 }
+```
+
+**Step 2: Add the route in main.tsx**
+
+Add import and route for InventoryOverlay:
+
+```tsx
+import InventoryOverlay from './pages/InventoryOverlay';
+```
+
+Add route inside `<Routes>`:
+
+```tsx
+<Route path="/inventory-overlay" element={<InventoryOverlay />} />
+```
+
+**Step 3: Verify frontend builds**
+
+Run: `mise exec -- npx vite build`
+Expected: builds with no errors
+
+**Step 4: Commit**
+
+```bash
+git add src/pages/InventoryOverlay.tsx src/main.tsx
+git commit -m "feat: add inventory overlay page with grid calibration and tag rendering"
+```
+
+---
+
+### Task 4: Add inventory overlay controls to ControlPanel
+
+**Files:**
+- Modify: `src/pages/ControlPanel.tsx`
+
+**Step 1: Add inventory overlay config UI**
+
+In `ControlPanel.tsx`, add state variables after existing state declarations (around line 17):
+
+```tsx
+const [invOverlayVisible, setInvOverlayVisible] = useState(true);
+const [invColumns, setInvColumns] = useState(() => localStorage.getItem('gorgon-inv-columns') ?? '11');
+const [invStartSlot, setInvStartSlot] = useState(() => localStorage.getItem('gorgon-inv-start-slot') ?? '1');
+```
+
+Add handler functions after `onZoneChange` (around line 54):
+
+```tsx
+const toggleInvOverlay = async () => {
+  try {
+    const visible = await invoke<boolean>('toggle_inventory_overlay_visible');
+    setInvOverlayVisible(visible);
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const applyInvConfig = () => {
+  const cols = parseInt(invColumns, 10);
+  const slot = parseInt(invStartSlot, 10);
+  if (!isNaN(cols) && cols > 0) localStorage.setItem('gorgon-inv-columns', String(cols));
+  if (!isNaN(slot) && slot > 0) localStorage.setItem('gorgon-inv-start-slot', String(slot));
+};
+
+const recalibrateInv = () => {
+  localStorage.removeItem('gorgon-inv-calibration');
+};
+```
+
+Add UI section after the existing `<hr>` and before the settings button (before the closing `<hr>` around line 107):
+
+```tsx
+<hr style={{ margin: '12px 0 8px' }} />
+<h4 style={{ margin: '0 0 8px', fontSize: 14 }}>Inventory Overlay</h4>
+<div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6, fontSize: 12 }}>
+  <span style={{ color: '#888' }}>Cols:</span>
+  <input value={invColumns} onChange={e => setInvColumns(e.target.value)}
+    style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
+  <span style={{ color: '#888' }}>Start slot:</span>
+  <input value={invStartSlot} onChange={e => setInvStartSlot(e.target.value)}
+    style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
+  <button onClick={applyInvConfig} style={{ fontSize: 12, padding: '2px 8px' }}>Set</button>
+</div>
+<div style={{ display: 'flex', gap: 4, fontSize: 12 }}>
+  <button onClick={toggleInvOverlay}>{invOverlayVisible ? 'Hide' : 'Show'} Inv Overlay</button>
+  <button onClick={recalibrateInv}>Recalibrate</button>
+</div>
+```
+
+**Step 2: Verify frontend builds**
+
+Run: `mise exec -- npx vite build`
+Expected: builds with no errors
+
+**Step 3: Commit**
+
+```bash
+git add src/pages/ControlPanel.tsx
+git commit -m "feat: add inventory overlay config controls to control panel"
+```
+
+---
+
+### Task 5: Integration test and final verification
+
+**Step 1: Run all Rust tests**
+
+Run: `cd src-tauri && mise exec -- cargo test`
+Expected: all tests pass
+
+**Step 2: Run frontend type check**
+
+Run: `mise exec -- npx vite build`
+Expected: builds with no errors
+
+**Step 3: Manual smoke test**
+
+Run: `WEBKIT_DISABLE_DMABUF_RENDERER=1 mise exec -- npm run tauri dev`
+
+Verify:
+- Three windows appear: control panel, map overlay, inventory overlay
+- Inventory overlay has drag bar labeled "INV" and resize handles
+- Two-click calibration works (click top-left then bottom-right of a slot)
+- Tags appear at grid positions with survey route_order numbers
+- Columns/start slot controls in control panel update the overlay
+- Skip/clear in control panel updates inventory overlay tags
+- Hide/Show and Recalibrate buttons work
+
+**Step 4: Final commit if any fixups needed**

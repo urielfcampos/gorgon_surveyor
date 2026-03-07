@@ -69,6 +69,7 @@ pub fn run() {
             commands::get_zones,
             commands::start_log_watching,
             commands::set_overlay_passthrough,
+            commands::set_inventory_overlay_passthrough,
             commands::set_player_position,
             commands::toggle_overlay_visible,
             commands::toggle_inventory_overlay_visible,

@@ -56,6 +56,18 @@ pub fn clear_motherlode(state: State<SharedState>, app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
+pub fn toggle_surveys_locked(state: State<SharedState>, app: tauri::AppHandle) {
+    let mut s = state.lock().unwrap();
+    s.surveys_locked = !s.surveys_locked;
+    let _ = app.emit("state-updated", s.clone());
+}
+
+#[tauri::command]
 pub fn skip_survey(id: u32, state: State<SharedState>, app: tauri::AppHandle) {
     let mut s = state.lock().unwrap();
     s.mark_collected(id);
@@ -93,16 +105,6 @@ pub fn set_overlay_passthrough(enabled: bool, app: tauri::AppHandle) -> Result<(
 }
 
 #[tauri::command]
-pub fn set_inventory_overlay_passthrough(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("inventory-overlay") {
-        window.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Inventory overlay window not found".to_string())
-    }
-}
-
-#[tauri::command]
 pub fn toggle_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window("overlay") {
         let visible = window.is_visible().map_err(|e| e.to_string())?;
@@ -114,21 +116,6 @@ pub fn toggle_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
         Ok(!visible)
     } else {
         Err("Overlay window not found".to_string())
-    }
-}
-
-#[tauri::command]
-pub fn toggle_inventory_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window("inventory-overlay") {
-        let visible = window.is_visible().map_err(|e| e.to_string())?;
-        if visible {
-            window.hide().map_err(|e| e.to_string())?;
-        } else {
-            window.show().map_err(|e| e.to_string())?;
-        }
-        Ok(!visible)
-    } else {
-        Err("Inventory overlay window not found".to_string())
     }
 }
 

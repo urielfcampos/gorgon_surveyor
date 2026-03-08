@@ -24,6 +24,7 @@ pub struct AppState {
     pub motherlode_readings: Vec<((f64, f64), f64)>,
     pub motherlode_location: Option<(f64, f64)>,
     pub player_position: Option<(f64, f64)>,
+    pub surveys_locked: bool,
     next_survey_number: usize,
 }
 

@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import ControlPanel from './pages/ControlPanel';
 import Overlay from './pages/Overlay';
-import InventoryOverlay from './pages/InventoryOverlay';
 import './App.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -12,7 +11,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<ControlPanel />} />
         <Route path="/overlay" element={<Overlay />} />
-        <Route path="/inventory-overlay" element={<InventoryOverlay />} />
+
       </Routes>
     </HashRouter>
   </React.StrictMode>

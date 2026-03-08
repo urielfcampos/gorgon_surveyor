@@ -4,7 +4,6 @@ import { useSurveyState } from "../hooks/useSurveyState";
 import SurveyList from "../components/SurveyList";
 import MotherlodePanel from "../components/MotherlodePanel";
 import Settings from "../components/Settings";
-import { CALIBRATION_KEY } from "../constants";
 
 type Mode = "survey" | "motherlode";
 
@@ -15,13 +14,6 @@ export default function ControlPanel() {
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [zones, setZones] = useState<string[]>([]);
   const [zone, setZone] = useState("Serbule");
-  const [invOverlayVisible, setInvOverlayVisible] = useState(true);
-  const [invColumns, setInvColumns] = useState(
-    () => localStorage.getItem("gorgon-inv-columns") ?? "11",
-  );
-  const [invStartSlot, setInvStartSlot] = useState(
-    () => localStorage.getItem("gorgon-inv-start-slot") ?? "1",
-  );
 
   useEffect(() => {
     invoke<string[]>("get_zones").then(setZones);
@@ -30,10 +22,6 @@ export default function ControlPanel() {
     });
   }, []);
 
-  const recalibrate = () => {
-    localStorage.removeItem(CALIBRATION_KEY);
-  };
-
   const toggleOverlay = async () => {
     try {
       const visible = await invoke<boolean>("toggle_overlay_visible");
@@ -41,28 +29,6 @@ export default function ControlPanel() {
     } catch (e) {
       console.error(e);
     }
-  };
-
-  const toggleInvOverlay = async () => {
-    try {
-      const visible = await invoke<boolean>("toggle_inventory_overlay_visible");
-      setInvOverlayVisible(visible);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const applyInvConfig = () => {
-    const cols = parseInt(invColumns, 10);
-    const slot = parseInt(invStartSlot, 10);
-    if (!isNaN(cols) && cols > 0)
-      localStorage.setItem("gorgon-inv-columns", String(cols));
-    if (!isNaN(slot) && slot > 0)
-      localStorage.setItem("gorgon-inv-start-slot", String(slot));
-  };
-
-  const recalibrateInv = () => {
-    localStorage.removeItem("gorgon-inv-calibration");
   };
 
   const onZoneChange = async (z: string) => {
@@ -130,19 +96,10 @@ export default function ControlPanel() {
             </button>
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <button
-              onClick={recalibrate}
-              style={{ fontSize: 12, padding: "2px 8px" }}
-            >
-              Recalibrate Overlay
-            </button>
-          </div>
-
           <hr style={{ margin: "0 0 12px" }} />
 
           {mode === "survey" ? (
-            <SurveyList surveys={state.surveys} />
+            <SurveyList surveys={state.surveys} locked={state.surveys_locked} />
           ) : (
             <MotherlodePanel
               readings={state.motherlode_readings}
@@ -150,23 +107,15 @@ export default function ControlPanel() {
             />
           )}
 
-          <hr style={{ margin: '12px 0 8px' }} />
-          <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>Inventory Overlay</h4>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6, fontSize: 12 }}>
-            <span style={{ color: '#888' }}>Cols:</span>
-            <input value={invColumns} onChange={e => setInvColumns(e.target.value)}
-              style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
-            <span style={{ color: '#888' }}>Start slot:</span>
-            <input value={invStartSlot} onChange={e => setInvStartSlot(e.target.value)}
-              style={{ width: 35, padding: '2px 4px', fontSize: 12 }} />
-            <button onClick={applyInvConfig} style={{ fontSize: 12, padding: '2px 8px' }}>Set</button>
-          </div>
-          <div style={{ display: 'flex', gap: 4, fontSize: 12 }}>
-            <button onClick={toggleInvOverlay}>{invOverlayVisible ? 'Hide' : 'Show'} Inv Overlay</button>
-            <button onClick={recalibrateInv}>Recalibrate Inv</button>
-          </div>
         </>
       )}
+      <hr style={{ margin: '12px 0 8px' }} />
+      <button
+        onClick={() => invoke('quit_app')}
+        style={{ width: '100%', padding: '6px', background: '#cc4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}
+      >
+        Quit
+      </button>
     </div>
   );
 }

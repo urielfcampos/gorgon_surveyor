@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Survey } from '../hooks/useSurveyState';
 
-export default function SurveyList({ surveys }: { surveys: Survey[] }) {
+export default function SurveyList({ surveys, locked }: { surveys: Survey[]; locked: boolean }) {
   const active = surveys
     .filter(s => !s.collected)
     .sort((a, b) => (a.route_order ?? 999) - (b.route_order ?? 999));
@@ -10,7 +10,15 @@ export default function SurveyList({ surveys }: { surveys: Survey[] }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0 }}>Surveys ({active.length})</h3>
-        <button onClick={() => invoke('clear_surveys')}>Clear All</button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={() => invoke('toggle_surveys_locked')}
+            style={{ fontSize: 12, background: locked ? '#cc4444' : undefined }}
+          >
+            {locked ? 'Locked' : 'Lock'}
+          </button>
+          <button onClick={() => invoke('clear_surveys')}>Clear All</button>
+        </div>
       </div>
       {active.length === 0 && <p style={{ color: '#888', fontSize: 13 }}>No surveys detected yet</p>}
       <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0' }}>

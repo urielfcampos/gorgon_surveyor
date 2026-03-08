@@ -17,6 +17,7 @@ export interface AppState {
   motherlode_readings: Array<[[number, number], number]>;
   motherlode_location: [number, number] | null;
   player_position: [number, number] | null;
+  surveys_locked: boolean;
 }
 
 const EMPTY_STATE: AppState = {
@@ -24,6 +25,7 @@ const EMPTY_STATE: AppState = {
   motherlode_readings: [],
   motherlode_location: null,
   player_position: null,
+  surveys_locked: false,
 };
 
 export function useSurveyState() {

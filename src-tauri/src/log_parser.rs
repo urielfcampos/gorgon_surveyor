@@ -10,6 +10,7 @@ pub enum LogEvent {
     /// "The treasure is 1000 meters away"
     /// Raw distance to a motherlode — requires triangulation from 3 positions.
     MotherlodeDistance { meters: f64 },
+    /// "[Status] Obsidian collected! Also found Topaz x3 (speed bonus!)"
     SurveyCollected,
 }
 
@@ -32,7 +33,8 @@ fn motherlode_re() -> &'static Regex {
 fn collected_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"You collected the survey reward").unwrap()
+        // Format: "[Status] Obsidian collected! Also found Topaz x3 (speed bonus!)"
+        Regex::new(r"\[Status\] .+ collected!").unwrap()
     })
 }
 
@@ -90,7 +92,14 @@ mod tests {
 
     #[test]
     fn test_parse_survey_collected() {
-        let line = "You collected the survey reward.";
+        let line = "[Status] Obsidian collected! Also found Topaz x3 (speed bonus!)";
+        let event = parse_line(line);
+        assert_eq!(event, Some(LogEvent::SurveyCollected));
+    }
+
+    #[test]
+    fn test_parse_survey_collected_no_bonus() {
+        let line = "[Status] Iron Ore collected!";
         let event = parse_line(line);
         assert_eq!(event, Some(LogEvent::SurveyCollected));
     }

@@ -44,6 +44,7 @@ fn handle_log_event(event: LogEvent, state: &Arc<Mutex<AppState>>, app: &AppHand
     let mut s = state.lock().unwrap();
     match event {
         LogEvent::SurveyOffset { dx, dy } => {
+            if s.surveys_locked { return; }
             let (px, py) = s.player_position.unwrap_or((0.0, 0.0));
             s.add_survey("".into(), px + dx, py + dy);
         }
@@ -53,16 +54,7 @@ fn handle_log_event(event: LogEvent, state: &Arc<Mutex<AppState>>, app: &AppHand
             }
         }
         LogEvent::SurveyCollected => {
-            // Mark the first active survey (lowest route order) as collected
-            if let Some(id) = s
-                .surveys
-                .iter()
-                .filter(|s| !s.collected)
-                .min_by_key(|s| s.route_order.unwrap_or(usize::MAX))
-                .map(|s| s.id)
-            {
-                s.mark_collected(id);
-            }
+            // No-op: markers are removed manually via the UI
         }
     }
     let _ = app.emit("state-updated", s.clone());

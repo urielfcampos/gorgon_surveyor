@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["control-panel", "overlay", "inventory-overlay"],
+  "windows": ["control-panel", "overlay"],
   "permissions": [
     "core:default",
     "opener:default",

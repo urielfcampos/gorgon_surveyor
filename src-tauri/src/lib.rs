@@ -37,9 +37,6 @@ pub fn run() {
             if let Some(overlay) = app.get_webview_window("overlay") {
                 overlay.set_ignore_cursor_events(true).ok();
             }
-            if let Some(inv_overlay) = app.get_webview_window("inventory-overlay") {
-                inv_overlay.set_ignore_cursor_events(true).ok();
-            }
             // Auto-start watcher if log path was previously configured
             let cfg = setup_config.lock().unwrap().clone();
             if !cfg.log_folder.is_empty() {
@@ -64,17 +61,17 @@ pub fn run() {
             commands::get_state,
             commands::get_config,
             commands::save_config,
+            commands::quit_app,
             commands::clear_surveys,
+            commands::toggle_surveys_locked,
             commands::clear_motherlode,
             commands::skip_survey,
             commands::add_motherlode_reading,
             commands::get_zones,
             commands::start_log_watching,
             commands::set_overlay_passthrough,
-            commands::set_inventory_overlay_passthrough,
             commands::set_player_position,
             commands::toggle_overlay_visible,
-            commands::toggle_inventory_overlay_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

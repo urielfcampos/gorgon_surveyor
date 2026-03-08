@@ -22,7 +22,7 @@
       },
       {
         "label": "overlay",
-        "title": "",
+        "title": "Survey Overlay",
         "width": 500,
         "height": 500,
         "x": 100,
@@ -33,6 +33,20 @@
         "skipTaskbar": true,
         "resizable": true,
         "url": "index.html#/overlay"
+      },
+      {
+        "label": "inventory-overlay",
+        "title": "Inventory Overlay",
+        "width": 600,
+        "height": 400,
+        "x": 200,
+        "y": 200,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "url": "index.html#/inventory-overlay"
       }
     ],
     "security": {

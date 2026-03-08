@@ -13,7 +13,7 @@ interface Config {
   colors: { uncollected: string; collected: string; waypoint: string; motherlode: string };
 }
 
-interface Calibration { anchor: { x: number; y: number }; scale: number; }
+interface Calibration { anchor: { x: number; y: number }; scaleX: number; scaleY: number; }
 type CalibrationStep = 'waiting_for_survey' | 'click_player' | 'click_survey' | 'calibrated';
 
 const HANDLES: { dir: ResizeDirection; style: React.CSSProperties }[] = [
@@ -54,8 +54,8 @@ function ResizeHandles() {
   );
 }
 
-function surveyToCanvas(gx: number, gy: number, anchor: { x: number; y: number }, scale: number): [number, number] {
-  return [anchor.x + gx * scale, anchor.y - gy * scale];
+function surveyToCanvas(gx: number, gy: number, anchor: { x: number; y: number }, scaleX: number, scaleY: number): [number, number] {
+  return [anchor.x + gx * scaleX, anchor.y - gy * scaleY];
 }
 
 export default function Overlay() {
@@ -64,7 +64,15 @@ export default function Overlay() {
   const [config, setConfig] = useState<Config | null>(null);
   const [calibration, setCalibration] = useState<Calibration | null>(() => {
     const saved = localStorage.getItem(CALIBRATION_KEY);
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    // Migrate old single-scale calibration
+    if ('scale' in parsed && !('scaleX' in parsed)) {
+      const migrated = { anchor: parsed.anchor, scaleX: parsed.scale, scaleY: parsed.scale };
+      localStorage.setItem(CALIBRATION_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+    return parsed;
   });
   const [calStep, setCalStep] = useState<CalibrationStep>(() => {
     const saved = localStorage.getItem(CALIBRATION_KEY);
@@ -79,6 +87,8 @@ export default function Overlay() {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.background = 'transparent';
     document.body.style.overflow = 'hidden';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
   }, []);
 
   // Track window resize so canvas stays the right size
@@ -93,6 +103,11 @@ export default function Overlay() {
     const unlisten = listen<Config>('config-updated', e => setConfig(e.payload));
     return () => { unlisten.then(f => f()); };
   }, []);
+
+  // Disable click-through during calibration so canvas receives clicks
+  useEffect(() => {
+    invoke('set_overlay_passthrough', { enabled: calStep === 'calibrated' }).catch(console.error);
+  }, [calStep]);
 
   // Auto-transition from waiting_for_survey to click_player
   useEffect(() => {
@@ -133,11 +148,15 @@ export default function Overlay() {
     }
 
     if (calStep === 'click_survey' && playerClick && calibratingSurvey) {
-      const pixelDist = Math.hypot(click.x - playerClick.x, click.y - playerClick.y);
-      const meterDist = Math.hypot(calibratingSurvey.x, calibratingSurvey.y);
-      if (meterDist < 1) return;
-      const scale = pixelDist / meterDist;
-      const newCal: Calibration = { anchor: playerClick, scale };
+      const dx = click.x - playerClick.x;
+      const dy = playerClick.y - click.y; // flip: screen y is inverted vs game y
+      if (Math.abs(calibratingSurvey.x) < 1 && Math.abs(calibratingSurvey.y) < 1) return;
+      // Compute per-axis scale; fall back to the other axis if one is near zero (cardinal direction)
+      const rawScaleX = Math.abs(calibratingSurvey.x) < 1 ? null : dx / calibratingSurvey.x;
+      const rawScaleY = Math.abs(calibratingSurvey.y) < 1 ? null : dy / calibratingSurvey.y;
+      const scaleX = rawScaleX ?? rawScaleY!;
+      const scaleY = rawScaleY ?? rawScaleX!;
+      const newCal: Calibration = { anchor: playerClick, scaleX, scaleY };
       setCalibration(newCal);
       setCalStep('calibrated');
       localStorage.setItem(CALIBRATION_KEY, JSON.stringify(newCal));
@@ -157,7 +176,7 @@ export default function Overlay() {
     let closest: { id: number; dist: number } | null = null;
     for (const survey of state.surveys) {
       if (survey.collected) continue;
-      const [cx, cy] = surveyToCanvas(survey.x, survey.y, calibration.anchor, calibration.scale);
+      const [cx, cy] = surveyToCanvas(survey.x, survey.y, calibration.anchor, calibration.scaleX, calibration.scaleY);
       const dist = Math.hypot(clickX - cx, clickY - cy);
       if (dist <= HIT_RADIUS && (!closest || dist < closest.dist)) {
         closest = { id: survey.id, dist };
@@ -176,34 +195,16 @@ export default function Overlay() {
 
     const W = canvas.width;
     const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
+    // On WebKitGTK with transparent windows, clearRect alone doesn't
+    // properly erase previous frames. Force a full opaque-then-clear cycle.
+    ctx.globalCompositeOperation = 'copy';
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
 
-    if (calStep !== 'calibrated' || !calibration) {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (calStep === 'waiting_for_survey') {
-        ctx.fillText('Waiting for survey data...', W / 2, H / 2);
-      } else if (calStep === 'click_player') {
-        ctx.fillText('Click YOUR position on the map', W / 2, H / 2);
-      } else if (calStep === 'click_survey') {
-        ctx.fillText('Now click the SURVEY location', W / 2, H / 2);
-        // Draw player click marker during click_survey step
-        if (playerClick) {
-          ctx.beginPath();
-          ctx.arc(playerClick.x, playerClick.y, 5, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,0,0.9)';
-          ctx.fill();
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
-      return;
-    }
+    if (calStep !== 'calibrated' || !calibration) return;
 
-    const { anchor, scale } = calibration;
+    const { anchor, scaleX, scaleY } = calibration;
     const { uncollected, waypoint, motherlode } = config.colors;
 
     // Route lines
@@ -216,10 +217,10 @@ export default function Overlay() {
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      const [fx, fy] = surveyToCanvas(ordered[0].x, ordered[0].y, anchor, scale);
+      const [fx, fy] = surveyToCanvas(ordered[0].x, ordered[0].y, anchor, scaleX, scaleY);
       ctx.moveTo(fx, fy);
       for (let i = 1; i < ordered.length; i++) {
-        const [nx, ny] = surveyToCanvas(ordered[i].x, ordered[i].y, anchor, scale);
+        const [nx, ny] = surveyToCanvas(ordered[i].x, ordered[i].y, anchor, scaleX, scaleY);
         ctx.lineTo(nx, ny);
       }
       ctx.stroke();
@@ -229,7 +230,7 @@ export default function Overlay() {
     // Survey dots
     for (const survey of state.surveys) {
       if (survey.collected) continue;
-      const [cx, cy] = surveyToCanvas(survey.x, survey.y, anchor, scale);
+      const [cx, cy] = surveyToCanvas(survey.x, survey.y, anchor, scaleX, scaleY);
       ctx.beginPath();
       ctx.arc(cx, cy, 9, 0, Math.PI * 2);
       ctx.fillStyle = uncollected;
@@ -241,12 +242,11 @@ export default function Overlay() {
       ctx.fillText(String(survey.survey_number), cx, cy);
     }
 
-    // Motherlode distance circles
+    // Motherlode distance ellipses
     for (const [[px, py], dist] of state.motherlode_readings) {
-      const [cx, cy] = surveyToCanvas(px, py, anchor, scale);
-      const scaledR = dist * scale;
+      const [cx, cy] = surveyToCanvas(px, py, anchor, scaleX, scaleY);
       ctx.beginPath();
-      ctx.arc(cx, cy, scaledR, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, dist * Math.abs(scaleX), dist * Math.abs(scaleY), 0, 0, Math.PI * 2);
       ctx.strokeStyle = motherlode + '88';
       ctx.lineWidth = 1.5;
       ctx.stroke();
@@ -255,7 +255,7 @@ export default function Overlay() {
     // Triangulated motherlode location
     if (state.motherlode_location) {
       const [mx, my] = state.motherlode_location;
-      const [cx, cy] = surveyToCanvas(mx, my, anchor, scale);
+      const [cx, cy] = surveyToCanvas(mx, my, anchor, scaleX, scaleY);
       ctx.beginPath();
       ctx.arc(cx, cy, 11, 0, Math.PI * 2);
       ctx.fillStyle = motherlode;
@@ -268,23 +268,17 @@ export default function Overlay() {
       ctx.stroke();
     }
 
-    // Anchor marker (player position)
-    ctx.beginPath();
-    ctx.arc(anchor.x, anchor.y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,0,0.9)';
-    ctx.fill();
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }, [state, config, calibration, calStep, playerClick, size]);
+    // Anchor marker removed — it ghosts on WebKitGTK transparent windows
+  }, [state, config, calibration, calStep, size]);
 
   return (
     <div style={{
+      position: 'relative',
       width: '100vw', height: '100vh',
       background: 'transparent',
       pointerEvents: 'none',
-      boxSizing: 'border-box',
-      border: '2px solid rgba(255, 220, 0, 0.6)',
+      outline: '2px solid rgba(255, 220, 0, 0.6)',
+      outlineOffset: -2,
     }}>
       <div
         style={{
@@ -295,23 +289,52 @@ export default function Overlay() {
           fontSize: 11, fontFamily: 'sans-serif', userSelect: 'none', zIndex: 10,
           color: 'rgba(255,255,255,0.8)',
         }}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        {...{ 'data-tauri-drag-region': true } as any}
+        onMouseDown={() => getCurrentWindow().startDragging().catch(console.error)}
       >
         ⠿
       </div>
-      <canvas
-        ref={canvasRef}
-        width={size.w}
-        height={size.h}
-        style={{
-          display: 'block',
-          pointerEvents: 'auto',
-          cursor: 'crosshair',
-        }}
-        onClick={handleCanvasClick}
-        onContextMenu={handleContextMenu}
-      />
+      {calStep !== 'calibrated' ? (
+        <>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#fff',
+            font: 'bold 14px sans-serif',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            zIndex: 5,
+            background: 'rgba(0, 0, 0, 0.75)',
+            padding: '8px 16px',
+            borderRadius: 6,
+          }}>
+            {calStep === 'waiting_for_survey' && 'Waiting for survey data...'}
+            {calStep === 'click_player' && 'Click YOUR position on the map'}
+            {calStep === 'click_survey' && 'Now click the SURVEY location'}
+          </div>
+          {playerClick && calStep === 'click_survey' && (
+            <div style={{
+              position: 'absolute',
+              left: playerClick.x - 5, top: playerClick.y - 5,
+              width: 10, height: 10, borderRadius: '50%',
+              background: 'rgba(255,255,0,0.9)',
+              border: '1px solid #000',
+              pointerEvents: 'none', zIndex: 5,
+            }} />
+          )}
+          <div
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'auto', cursor: 'crosshair', background: 'rgba(0,0,0,0.01)' }}
+            onClick={handleCanvasClick}
+          />
+        </>
+      ) : (
+        <canvas
+          ref={canvasRef}
+          width={size.w}
+          height={size.h}
+          style={{ position: 'absolute', top: 0, left: 0, display: 'block', pointerEvents: 'auto', cursor: 'default' }}
+          onContextMenu={handleContextMenu}
+        />
+      )}
       <ResizeHandles />
     </div>
   );

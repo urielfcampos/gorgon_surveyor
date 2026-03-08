@@ -31,9 +31,14 @@ pub fn run() {
         .manage(app_config.clone())
         .manage(watching.clone())
         .setup(move |app| {
-            // Make overlay window click-through
+            // Enable click-through on overlay windows. This is required on Linux
+            // for data-tauri-drag-region to work on transparent windows.
+            // The frontend temporarily disables it during calibration.
             if let Some(overlay) = app.get_webview_window("overlay") {
                 overlay.set_ignore_cursor_events(true).ok();
+            }
+            if let Some(inv_overlay) = app.get_webview_window("inventory-overlay") {
+                inv_overlay.set_ignore_cursor_events(true).ok();
             }
             // Auto-start watcher if log path was previously configured
             let cfg = setup_config.lock().unwrap().clone();
@@ -66,8 +71,10 @@ pub fn run() {
             commands::get_zones,
             commands::start_log_watching,
             commands::set_overlay_passthrough,
+            commands::set_inventory_overlay_passthrough,
             commands::set_player_position,
             commands::toggle_overlay_visible,
+            commands::toggle_inventory_overlay_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

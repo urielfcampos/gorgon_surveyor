@@ -21,7 +21,8 @@ defmodule GorgonSurveyWeb.SurveyLive do
       app_state: state,
       sharing: false,
       placing_survey: nil,
-      log_folder: log_folder
+      log_folder: log_folder,
+      auto_detect: false
     )}
   end
 
@@ -64,6 +65,43 @@ defmodule GorgonSurveyWeb.SurveyLive do
     socket = assign(socket, sharing: true)
     socket = push_event(socket, "start_capture", %{})
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_auto_detect", _params, socket) do
+    auto_detect = !socket.assigns.auto_detect
+    socket = assign(socket, auto_detect: auto_detect)
+
+    socket = if auto_detect do
+      push_event(socket, "start_auto_detect", %{})
+    else
+      push_event(socket, "stop_auto_detect", %{})
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("scan_frame", %{"data" => data_url}, socket) do
+    png_binary = data_url
+      |> String.split(",", parts: 2)
+      |> List.last()
+      |> Base.decode64!()
+
+    case GorgonSurvey.SurveyDetector.detect(png_binary) do
+      {:ok, circles} ->
+        unplaced = Enum.filter(socket.assigns.app_state.surveys, &is_nil(&1.x_pct))
+
+        Enum.zip(unplaced, circles)
+        |> Enum.each(fn {survey, {x_pct, y_pct}} ->
+          LogWatcher.place_survey(survey.id, x_pct, y_pct)
+        end)
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   @impl true

@@ -232,3 +232,43 @@
 .clear-btn:hover {
   background: #c33;
 }
+
+.settings-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #333;
+}
+
+.settings-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.settings-section label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #aaa;
+}
+
+.settings-section input[type="text"] {
+  width: 100%;
+  padding: 4px 8px;
+  background: #1a1a3e;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.settings-section button {
+  padding: 4px 12px;
+  background: #3a86ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}

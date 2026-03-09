@@ -30,5 +30,14 @@
     </div>
 
     <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
+
+    <div class="settings-section">
+      <h3>Settings</h3>
+      <form phx-submit="set_log_folder">
+        <label>Log Folder</label>
+        <input type="text" name="folder" value={@log_folder} placeholder="/path/to/game/logs" />
+        <button type="submit">Save & Watch</button>
+      </form>
+    </div>
   </aside>
 </div>

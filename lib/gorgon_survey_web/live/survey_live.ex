@@ -2,6 +2,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
   use GorgonSurveyWeb, :live_view
 
   alias GorgonSurvey.LogWatcher
+  alias GorgonSurvey.ConfigStore
 
   @impl true
   def mount(_params, _session, socket) do
@@ -10,11 +11,13 @@ defmodule GorgonSurveyWeb.SurveyLive do
     end
 
     state = LogWatcher.get_state()
+    log_folder = ConfigStore.get("log_folder", "")
 
     {:ok, assign(socket,
       app_state: state,
       sharing: false,
-      placing_survey: nil
+      placing_survey: nil,
+      log_folder: log_folder
     )}
   end
 
@@ -55,6 +58,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
   @impl true
   def handle_event("start_sharing", _params, socket) do
     {:noreply, assign(socket, sharing: true)}
+  end
+
+  @impl true
+  def handle_event("set_log_folder", %{"folder" => folder}, socket) do
+    ConfigStore.put("log_folder", folder)
+    {:noreply, assign(socket, log_folder: folder)}
   end
 
   defp serialize_state(app_state) do

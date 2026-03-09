@@ -31,6 +31,10 @@
 
     <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
 
+    <button phx-click="toggle_auto_detect" class={"detect-btn #{if @auto_detect, do: "active"}"}>
+      <%= if @auto_detect, do: "Stop Auto-Detect", else: "Auto-Detect" %>
+    </button>
+
     <div class="settings-section">
       <h3>Settings</h3>
       <form phx-submit="set_log_folder">

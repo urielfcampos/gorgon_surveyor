@@ -233,6 +233,21 @@
   background: #c33;
 }
 
+.detect-btn {
+  width: 100%;
+  padding: 6px;
+  background: #2a5a2a;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.detect-btn.active {
+  background: #5a2a2a;
+}
+
 .settings-section {
   margin-top: 16px;
   padding-top: 16px;

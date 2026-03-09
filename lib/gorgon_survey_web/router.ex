@@ -17,7 +17,7 @@ defmodule GorgonSurveyWeb.Router do
   scope "/", GorgonSurveyWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", SurveyLive
   end
 
   # Other scopes may use custom stacks.

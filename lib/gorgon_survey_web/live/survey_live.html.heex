@@ -1,10 +1,10 @@
 <div class="app-layout">
   <main class="main-area">
-    <div id="screen-capture" phx-hook="ScreenCapture" data-sharing={to_string(@sharing)}>
-      <%= unless @sharing do %>
-        <button phx-click="start_sharing" class="share-btn">Share Screen</button>
-      <% end %>
+    <div id="screen-capture" phx-hook="ScreenCapture" phx-update="ignore">
     </div>
+    <%= unless @sharing do %>
+      <button phx-click="start_sharing" class="share-btn">Share Screen</button>
+    <% end %>
 
     <%= if @placing_survey do %>
       <div class="placement-prompt">

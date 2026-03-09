@@ -31,6 +31,26 @@ defmodule GorgonSurvey.Application do
     :ok
   end
 
+  @doc """
+  Starts (or restarts) the LogWatcher with the latest log file in the given folder.
+  """
+  def start_log_watcher(folder) do
+    # Stop existing watcher if running
+    case GenServer.whereis(GorgonSurvey.LogWatcher) do
+      nil -> :ok
+      _pid -> Supervisor.terminate_child(GorgonSurvey.Supervisor, GorgonSurvey.LogWatcher)
+              Supervisor.delete_child(GorgonSurvey.Supervisor, GorgonSurvey.LogWatcher)
+    end
+
+    log_path = find_latest_log(folder)
+    if log_path do
+      spec = {GorgonSurvey.LogWatcher, log_path: log_path}
+      Supervisor.start_child(GorgonSurvey.Supervisor, spec)
+    else
+      {:error, "No log files found in #{folder}"}
+    end
+  end
+
   defp log_watcher_child_spec do
     log_folder = Application.get_env(:gorgon_survey, :log_folder)
 

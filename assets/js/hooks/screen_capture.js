@@ -57,14 +57,12 @@ const ScreenCapture = {
       this.draw();
     });
 
-    // Observe data-sharing attribute changes
-    this._observer = new MutationObserver(() => this.maybeStartCapture());
-    this._observer.observe(this.el, { attributes: true });
-    this.maybeStartCapture();
+    // Listen for start_capture event from server
+    this.handleEvent("start_capture", () => this.startCapture());
   },
 
-  async maybeStartCapture() {
-    if (this.el.dataset.sharing !== "true" || this.stream) return;
+  async startCapture() {
+    if (this.stream) return;
     try {
       this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       this.video.srcObject = this.stream;
@@ -119,7 +117,6 @@ const ScreenCapture = {
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
     }
-    this._observer.disconnect();
   }
 };
 

@@ -83,6 +83,21 @@ const ScreenCapture = {
 
     // Listen for start_capture event from server
     this.handleEvent("start_capture", () => this.startCapture());
+
+    this.scanInterval = null;
+    this.scanCanvas = document.createElement("canvas");
+
+    this.handleEvent("start_auto_detect", () => {
+      if (this.scanInterval) return;
+      this.scanInterval = setInterval(() => this.captureFrame(), 3000);
+    });
+
+    this.handleEvent("stop_auto_detect", () => {
+      if (this.scanInterval) {
+        clearInterval(this.scanInterval);
+        this.scanInterval = null;
+      }
+    });
   },
 
   async startCapture() {
@@ -101,6 +116,16 @@ const ScreenCapture = {
     this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
     this.draw();
+  },
+
+  captureFrame() {
+    if (!this.video || !this.video.videoWidth) return;
+    this.scanCanvas.width = this.video.videoWidth;
+    this.scanCanvas.height = this.video.videoHeight;
+    const ctx = this.scanCanvas.getContext("2d");
+    ctx.drawImage(this.video, 0, 0);
+    const dataUrl = this.scanCanvas.toDataURL("image/png");
+    this.pushEvent("scan_frame", { data: dataUrl });
   },
 
   draw() {
@@ -160,6 +185,9 @@ const ScreenCapture = {
   destroyed() {
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
+    }
+    if (this.scanInterval) {
+      clearInterval(this.scanInterval);
     }
   }
 };

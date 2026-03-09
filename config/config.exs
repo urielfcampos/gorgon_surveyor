@@ -10,6 +10,8 @@ import Config
 config :gorgon_survey,
   generators: [timestamp_type: :utc_datetime]
 
+config :gorgon_survey, :log_folder, ""
+
 # Configure the endpoint
 config :gorgon_survey, GorgonSurveyWeb.Endpoint,
   url: [host: "localhost"],

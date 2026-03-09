@@ -30,10 +30,23 @@
     </div>
 
     <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
+    <button phx-click="toggle_lock" class={"detect-btn #{if @locked, do: "active"}"}>
+      <%= if @locked, do: "Unlock Surveys", else: "Lock Surveys" %>
+    </button>
 
     <button phx-click="toggle_auto_detect" class={"detect-btn #{if @auto_detect, do: "active"}"}>
       <%= if @auto_detect, do: "Stop Auto-Detect", else: "Auto-Detect" %>
     </button>
+    <%= if @detect_zone do %>
+      <button phx-click="clear_detect_zone" class="detect-btn">Clear Map Zone</button>
+    <% else %>
+      <button phx-click="start_set_zone" class="detect-btn">Set Map Zone</button>
+    <% end %>
+    <%= if @inv_zone do %>
+      <button phx-click="clear_inv_zone" class="detect-btn">Clear Inv Zone</button>
+    <% else %>
+      <button phx-click="start_set_inv_zone" class="detect-btn">Set Inv Zone</button>
+    <% end %>
 
     <div class="settings-section">
       <h3>Settings</h3>

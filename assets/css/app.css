@@ -172,6 +172,29 @@
   font-size: 16px;
 }
 
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 6px 12px;
+  background: #1a1a3e;
+  color: #aaa;
+  border: 1px solid #333;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab-btn.active {
+  background: #2a2a5e;
+  color: #fff;
+  border-bottom-color: #2a2a5e;
+}
+
 .survey-list {
   display: flex;
   flex-direction: column;
@@ -191,6 +214,23 @@
 
 .survey-item.collected {
   opacity: 0.5;
+}
+
+.survey-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.survey-actions button {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.delete-btn {
+  color: #ff6b6b;
+  font-size: 16px !important;
+  line-height: 1;
 }
 
 .survey-num {

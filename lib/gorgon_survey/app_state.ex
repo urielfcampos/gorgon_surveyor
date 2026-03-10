@@ -45,6 +45,10 @@ defmodule GorgonSurvey.AppState do
     %{state | surveys: surveys}
   end
 
+  def delete_survey(state, id) do
+    %{state | surveys: Enum.reject(state.surveys, &(&1.id == id))}
+  end
+
   def clear_surveys(state) do
     %{state | surveys: [], next_number: 1}
   end

@@ -14,47 +14,75 @@
   </main>
 
   <aside class="sidebar">
-    <h2>Surveys</h2>
+    <div class="tab-bar">
+      <button phx-click="switch_tab" phx-value-tab="surveys" class={"tab-btn #{if @sidebar_tab == "surveys", do: "active"}"}>
+        Surveys
+      </button>
+      <button phx-click="switch_tab" phx-value-tab="settings" class={"tab-btn #{if @sidebar_tab == "settings", do: "active"}"}>
+        Settings
+      </button>
+    </div>
 
-    <div class="survey-list">
-      <%= for survey <- @app_state.surveys do %>
-        <div class={"survey-item #{if survey.collected, do: "collected"}"}>
-          <span class="survey-num"><%= survey.survey_number %></span>
-          <span class="survey-name"><%= survey.name %></span>
-          <span class="survey-offset"><%= survey.dx %>, <%= survey.dy %></span>
-          <button phx-click="toggle_collected" phx-value-id={survey.id}>
-            <%= if survey.collected, do: "Undo", else: "Done" %>
-          </button>
-        </div>
+    <%= if @sidebar_tab == "surveys" do %>
+      <div class="survey-list">
+        <%= for survey <- @app_state.surveys do %>
+          <div class={"survey-item #{if survey.collected, do: "collected"}"}>
+            <span class="survey-num"><%= survey.survey_number %></span>
+            <span class="survey-name"><%= survey.name %></span>
+            <span class="survey-offset"><%= survey.dx %>, <%= survey.dy %></span>
+            <div class="survey-actions">
+              <button phx-click="toggle_collected" phx-value-id={survey.id}>
+                <%= if survey.collected, do: "Undo", else: "Done" %>
+              </button>
+              <button phx-click="replace_marker" phx-value-id={survey.id} title="Replace marker">
+                &#8982;
+              </button>
+              <button phx-click="delete_survey" phx-value-id={survey.id} class="delete-btn" title="Delete survey">
+                &times;
+              </button>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
+      <button phx-click="toggle_lock" class={"detect-btn #{if @locked, do: "active"}"}>
+        <%= if @locked, do: "Unlock Surveys", else: "Lock Surveys" %>
+      </button>
+
+      <%= if @detect_zone do %>
+        <button phx-click="clear_detect_zone" class="detect-btn">Clear Map Zone</button>
+      <% else %>
+        <button phx-click="start_set_zone" class="detect-btn">Set Map Zone</button>
       <% end %>
-    </div>
-
-    <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
-    <button phx-click="toggle_lock" class={"detect-btn #{if @locked, do: "active"}"}>
-      <%= if @locked, do: "Unlock Surveys", else: "Lock Surveys" %>
-    </button>
-
-    <button phx-click="toggle_auto_detect" class={"detect-btn #{if @auto_detect, do: "active"}"}>
-      <%= if @auto_detect, do: "Stop Auto-Detect", else: "Auto-Detect" %>
-    </button>
-    <%= if @detect_zone do %>
-      <button phx-click="clear_detect_zone" class="detect-btn">Clear Map Zone</button>
-    <% else %>
-      <button phx-click="start_set_zone" class="detect-btn">Set Map Zone</button>
-    <% end %>
-    <%= if @inv_zone do %>
-      <button phx-click="clear_inv_zone" class="detect-btn">Clear Inv Zone</button>
-    <% else %>
-      <button phx-click="start_set_inv_zone" class="detect-btn">Set Inv Zone</button>
+      <%= if @inv_zone do %>
+        <button phx-click="clear_inv_zone" class="detect-btn">Clear Inv Zone</button>
+        <%= if @inv_markers != [] do %>
+          <button phx-click="undo_inv_mark" class="detect-btn">Undo Mark (<%= length(@inv_markers) %>)</button>
+        <% end %>
+        <p class="hint">Click inventory items to mark them</p>
+      <% else %>
+        <button phx-click="start_set_inv_zone" class="detect-btn">Set Inv Zone</button>
+      <% end %>
     <% end %>
 
-    <div class="settings-section">
-      <h3>Settings</h3>
-      <form phx-submit="set_log_folder">
-        <label>Log Folder</label>
-        <input type="text" name="folder" value={@log_folder} placeholder="/path/to/game/logs" />
-        <button type="submit">Save & Watch</button>
-      </form>
-    </div>
+    <%= if @sidebar_tab == "settings" do %>
+      <div class="settings-section">
+        <h3>Log Watcher</h3>
+        <form phx-submit="set_log_folder">
+          <label>Log Folder</label>
+          <input type="text" name="folder" value={@log_folder} placeholder="/path/to/game/logs" />
+          <button type="submit">Save & Watch</button>
+        </form>
+      </div>
+
+      <div class="settings-section">
+        <h3>Auto-Detect</h3>
+        <button phx-click="toggle_auto_detect_on_survey" class={"detect-btn #{if @auto_detect_on_survey, do: "active"}"}>
+          <%= if @auto_detect_on_survey, do: "Auto-place on survey: ON", else: "Auto-place on survey: OFF" %>
+        </button>
+        <p class="hint">Automatically scan and place marker when a new survey is detected in the log</p>
+      </div>
+    <% end %>
   </aside>
 </div>

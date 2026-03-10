@@ -10,48 +10,96 @@ defmodule GorgonSurveyWeb.SurveyLive do
       Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state")
     end
 
-    state = try do
-      LogWatcher.get_state()
-    catch
-      :exit, _ -> GorgonSurvey.AppState.new()
-    end
+    state =
+      try do
+        LogWatcher.get_state()
+      catch
+        :exit, _ -> GorgonSurvey.AppState.new()
+      end
+
     log_folder = ConfigStore.get("log_folder", "")
 
-    {:ok, assign(socket,
-      app_state: state,
-      sharing: false,
-      placing_survey: nil,
-      log_folder: log_folder,
-      auto_detect: false,
-      detect_zone: nil,
-      inv_zone: nil,
-      locked: false
-    )}
+    {:ok,
+     assign(socket,
+       app_state: state,
+       sharing: false,
+       placing_survey: nil,
+       log_folder: log_folder,
+       detect_zone: nil,
+       inv_zone: nil,
+       inv_markers: [],
+       locked: false,
+       auto_detect_on_survey: ConfigStore.get("auto_detect_on_survey", "false") == "true",
+       sidebar_tab: "surveys"
+     )}
   end
 
   @impl true
   def handle_info({:state_updated, app_state}, socket) do
-    app_state = if socket.assigns.locked do
-      # When locked, only update existing surveys (positions, collected status)
-      # but don't add new ones
-      existing_ids = MapSet.new(socket.assigns.app_state.surveys, & &1.id)
-      surveys = Enum.filter(app_state.surveys, &MapSet.member?(existing_ids, &1.id))
-      %{app_state | surveys: surveys}
-    else
-      app_state
-    end
+    app_state =
+      if socket.assigns.locked do
+        # When locked, only update existing surveys (positions, collected status)
+        # but don't add new ones
+        existing_ids = MapSet.new(socket.assigns.app_state.surveys, & &1.id)
+        surveys = Enum.filter(app_state.surveys, &MapSet.member?(existing_ids, &1.id))
+        %{app_state | surveys: surveys}
+      else
+        app_state
+      end
 
-    socket = assign(socket, app_state: app_state)
+    # Remove inventory markers for newly collected surveys
+    old_surveys = socket.assigns.app_state.surveys
+    inv_markers = socket.assigns[:inv_markers] || []
 
-    # If a new unplaced survey arrived, prompt placement
+    newly_collected =
+      app_state.surveys
+      |> Enum.filter(fn s ->
+        s.collected &&
+          Enum.find(old_surveys, fn o -> o.id == s.id && !o.collected end)
+      end)
+      |> MapSet.new(& &1.survey_number)
+
+    dbg(newly_collected)
+
+    inv_markers =
+      if MapSet.size(newly_collected) > 0 do
+        [collected] = newly_collected |> MapSet.to_list()
+
+        remove_and_shift_inv_markers(inv_markers, collected)
+        |> dbg()
+      else
+        inv_markers
+      end
+
+    socket = assign(socket, app_state: app_state, inv_markers: inv_markers)
+
+    # Check if a new survey arrived (not present in old state)
+    old_ids = MapSet.new(old_surveys, & &1.id)
+    has_new_survey = Enum.any?(app_state.surveys, fn s -> !MapSet.member?(old_ids, s.id) end)
+
+    # Trigger a single scan to place the new survey's marker
+    socket =
+      if has_new_survey && socket.assigns.auto_detect_on_survey do
+        push_event(socket, "scan_once", %{})
+      else
+        socket
+      end
+
+    # If a new unplaced survey arrived, prompt manual placement (skip when auto-place handles it)
     unplaced = Enum.find(app_state.surveys, &is_nil(&1.x_pct))
-    socket = if unplaced && socket.assigns.placing_survey == nil do
-      assign(socket, placing_survey: unplaced.id)
-    else
-      socket
-    end
 
-    socket = push_event(socket, "state_updated", serialize_state(socket))
+    socket =
+      if unplaced && socket.assigns.placing_survey == nil && !socket.assigns.auto_detect_on_survey do
+        assign(socket, placing_survey: unplaced.id)
+      else
+        socket
+      end
+
+    socket =
+      socket
+      |> push_event("state_updated", serialize_state(socket))
+      |> push_event("inv_markers", %{markers: inv_markers})
+
     {:noreply, socket}
   end
 
@@ -69,6 +117,21 @@ defmodule GorgonSurveyWeb.SurveyLive do
   end
 
   @impl true
+  def handle_event("delete_survey", %{"id" => id}, socket) do
+    id = if is_binary(id), do: String.to_integer(id), else: id
+    LogWatcher.delete_survey(id)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("replace_marker", %{"id" => id}, socket) do
+    id = if is_binary(id), do: String.to_integer(id), else: id
+    # Clear the survey's position so it becomes unplaced, then prompt placement
+    LogWatcher.place_survey(id, nil, nil)
+    {:noreply, assign(socket, placing_survey: id)}
+  end
+
+  @impl true
   def handle_event("toggle_lock", _params, socket) do
     {:noreply, assign(socket, locked: !socket.assigns.locked)}
   end
@@ -76,6 +139,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
   @impl true
   def handle_event("clear_surveys", _params, socket) do
     LogWatcher.clear_surveys()
+
+    socket =
+      socket
+      |> assign(inv_markers: [])
+      |> push_event("inv_markers", %{markers: []})
+
     {:noreply, socket}
   end
 
@@ -87,17 +156,15 @@ defmodule GorgonSurveyWeb.SurveyLive do
   end
 
   @impl true
-  def handle_event("toggle_auto_detect", _params, socket) do
-    auto_detect = !socket.assigns.auto_detect
-    socket = assign(socket, auto_detect: auto_detect)
+  def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, sidebar_tab: tab)}
+  end
 
-    socket = if auto_detect do
-      push_event(socket, "start_auto_detect", %{})
-    else
-      push_event(socket, "stop_auto_detect", %{})
-    end
-
-    {:noreply, socket}
+  @impl true
+  def handle_event("toggle_auto_detect_on_survey", _params, socket) do
+    enabled = !socket.assigns.auto_detect_on_survey
+    ConfigStore.put("auto_detect_on_survey", if(enabled, do: "true", else: "false"))
+    {:noreply, assign(socket, auto_detect_on_survey: enabled)}
   end
 
   @impl true
@@ -134,8 +201,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("clear_inv_zone", _params, socket) do
-    socket = assign(socket, inv_zone: nil)
-    socket = push_event(socket, "clear_inv_zone", %{})
+    socket =
+      socket
+      |> assign(inv_zone: nil, inv_markers: [])
+      |> push_event("clear_inv_zone", %{})
+
     {:noreply, socket}
   end
 
@@ -144,7 +214,8 @@ defmodule GorgonSurveyWeb.SurveyLive do
     require Logger
     Logger.info("scan_frame received, data_url size: #{byte_size(data_url)}")
 
-    png_binary = data_url
+    png_binary =
+      data_url
       |> String.split(",", parts: 2)
       |> List.last()
       |> Base.decode64!()
@@ -153,15 +224,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
     zone = socket.assigns.detect_zone
 
-    # Detect surveys and player in the cropped image
     survey_result = GorgonSurvey.SurveyDetector.detect(png_binary)
-    player_result = GorgonSurvey.SurveyDetector.detect_player(png_binary)
 
     # Map coordinates from cropped image back to full screen
     map_to_screen = fn {x_pct, y_pct} ->
       if zone do
-        {zone.x1 + (x_pct / 100) * (zone.x2 - zone.x1),
-         zone.y1 + (y_pct / 100) * (zone.y2 - zone.y1)}
+        {zone.x1 + x_pct / 100 * (zone.x2 - zone.x1), zone.y1 + y_pct / 100 * (zone.y2 - zone.y1)}
       else
         {x_pct, y_pct}
       end
@@ -172,7 +240,10 @@ defmodule GorgonSurveyWeb.SurveyLive do
       {:ok, circles} ->
         circles = Enum.map(circles, map_to_screen)
         unplaced = Enum.filter(socket.assigns.app_state.surveys, &is_nil(&1.x_pct))
-        Logger.info("scan_frame: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys")
+
+        Logger.info(
+          "scan_frame: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys"
+        )
 
         Enum.zip(unplaced, circles)
         |> Enum.each(fn {survey, {x_pct, y_pct}} ->
@@ -184,64 +255,60 @@ defmodule GorgonSurveyWeb.SurveyLive do
         Logger.warning("scan_frame: detect returned #{inspect(other)}")
     end
 
-    # Send player position to JS overlay and auto-collect nearby surveys
-    socket = case player_result do
-      {:ok, {px, py}} ->
-        {full_x, full_y} = map_to_screen.({px, py})
+    {:noreply, socket}
+  end
 
-        # Auto-collect: if player is within 3% of a placed uncollected survey, mark collected
-        socket.assigns.app_state.surveys
-        |> Enum.filter(fn s -> s.x_pct != nil and not s.collected end)
-        |> Enum.each(fn s ->
-          dist = :math.sqrt(:math.pow(s.x_pct - full_x, 2) + :math.pow(s.y_pct - full_y, 2))
-          if dist < 3.0 do
-            Logger.info("auto-collect: survey #{s.id} (dist=#{Float.round(dist, 1)}%)")
-            LogWatcher.toggle_collected(s.id)
-          end
-        end)
+  @impl true
+  def handle_event("mark_inv_item", %{"x_pct" => x_pct, "y_pct" => y_pct}, socket) do
+    surveys = socket.assigns.app_state.surveys
+    inv_markers = socket.assigns[:inv_markers] || []
 
-        push_event(socket, "player_position", %{x_pct: full_x, y_pct: full_y})
-      _ ->
-        socket
-    end
+    # Assign the next survey number based on how many markers are already placed
+    next_idx = length(inv_markers)
+
+    number =
+      case Enum.at(surveys, next_idx) do
+        nil -> next_idx + 1
+        s -> s.survey_number
+      end
+
+    marker = %{x_pct: x_pct, y_pct: y_pct, number: number}
+    inv_markers = inv_markers ++ [marker]
+
+    socket =
+      socket
+      |> assign(inv_markers: inv_markers)
+      |> push_event("inv_markers", %{markers: inv_markers})
 
     {:noreply, socket}
   end
 
   @impl true
-  def handle_event("scan_inventory", %{"data" => data_url}, socket) do
-    require Logger
+  def handle_event("remove_inv_mark", %{"number" => number}, socket) do
+    inv_markers =
+      (socket.assigns[:inv_markers] || [])
+      |> remove_and_shift_inv_markers(number)
 
-    png_binary = data_url
-      |> String.split(",", parts: 2)
-      |> List.last()
-      |> Base.decode64!()
+    socket =
+      socket
+      |> assign(inv_markers: inv_markers)
+      |> push_event("inv_markers", %{markers: inv_markers})
 
-    inv_zone = socket.assigns.inv_zone
+    {:noreply, socket}
+  end
 
-    case GorgonSurvey.SurveyDetector.detect_inventory(png_binary) do
-      {:ok, icons} ->
-        # Map back to full screen coords and assign survey numbers
-        surveys = socket.assigns.app_state.surveys
-        markers = icons
-          |> Enum.with_index(1)
-          |> Enum.map(fn {{x_pct, y_pct}, idx} ->
-            number = case Enum.at(surveys, idx - 1) do
-              nil -> idx
-              s -> s.survey_number
-            end
-            full_x = if inv_zone, do: inv_zone.x1 + (x_pct / 100) * (inv_zone.x2 - inv_zone.x1), else: x_pct
-            full_y = if inv_zone, do: inv_zone.y1 + (y_pct / 100) * (inv_zone.y2 - inv_zone.y1), else: y_pct
-            %{x_pct: full_x, y_pct: full_y, number: number}
-          end)
+  @impl true
+  def handle_event("undo_inv_mark", _params, socket) do
+    inv_markers = socket.assigns[:inv_markers] || []
 
-        Logger.info("[scan_inventory] detected #{length(icons)} survey icons")
-        socket = push_event(socket, "inv_markers", %{markers: markers})
-        {:noreply, socket}
+    inv_markers = if inv_markers != [], do: Enum.drop(inv_markers, -1), else: []
 
-      _ ->
-        {:noreply, socket}
-    end
+    socket =
+      socket
+      |> assign(inv_markers: inv_markers)
+      |> push_event("inv_markers", %{markers: inv_markers})
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -252,19 +319,81 @@ defmodule GorgonSurveyWeb.SurveyLive do
     case GorgonSurvey.Application.start_log_watcher(folder) do
       {:ok, _pid} ->
         {:noreply, socket}
+
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to start watcher: #{reason}")}
     end
   end
 
+  # Remove a marker by number, shift later markers into earlier positions.
+  # Numbers stay the same, positions shift left to fill the gap.
+  # e.g. [(p1,6), (p2,7), (p3,8), (p4,9)] remove 7 → [(p1,6), (p2,8), (p3,9)]
+  def remove_and_shift_inv_markers(markers, number) do
+    idx = Enum.find_index(markers, fn m -> m.number == number end)
+
+    if idx == nil do
+      markers
+    else
+      marker_to_be_deleted = Enum.at(markers, idx)
+
+      markers
+      |> List.delete_at(idx)
+      |> shift_inv_markers(marker_to_be_deleted)
+    end
+  end
+
+  # After removing markers (e.g. from collection), shift positions left.
+  # Keep original numbers, just collapse positions.
+  defp shift_inv_markers(markers, deleted_marker) do
+    result =
+      Enum.reduce(
+        markers,
+        %{markers: [], previous_position: %{x: deleted_marker.x_pct, y: deleted_marker.y_pct}},
+        fn marker, acc ->
+          cond do
+            marker.number > deleted_marker.number ->
+              updated_marker = %{
+                marker
+                | x_pct: acc.previous_position.x,
+                  y_pct: acc.previous_position.y
+              }
+
+              acc = put_in(acc, [:previous_position, :x], marker.x_pct)
+              acc = put_in(acc, [:previous_position, :y], marker.y_pct)
+
+              markers = [updated_marker | acc.markers]
+              Map.put(acc, :markers, markers)
+
+            marker.number < deleted_marker.number ->
+              markers = [marker | acc.markers]
+              Map.put(acc, :markers, markers)
+
+            true ->
+              acc
+          end
+        end
+      )
+
+    Enum.reverse(result.markers)
+  end
+
   defp serialize_state(socket) do
     app_state = socket.assigns.app_state
+
     %{
-      surveys: Enum.map(app_state.surveys, fn s ->
-        %{id: s.id, survey_number: s.survey_number, name: s.name,
-          dx: s.dx, dy: s.dy, x_pct: s.x_pct, y_pct: s.y_pct,
-          collected: s.collected}
-      end),
+      surveys:
+        Enum.map(app_state.surveys, fn s ->
+          %{
+            id: s.id,
+            survey_number: s.survey_number,
+            name: s.name,
+            dx: s.dx,
+            dy: s.dy,
+            x_pct: s.x_pct,
+            y_pct: s.y_pct,
+            collected: s.collected
+          }
+        end),
       placing_survey: socket.assigns.placing_survey
     }
   end

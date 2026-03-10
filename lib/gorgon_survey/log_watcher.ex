@@ -25,6 +25,10 @@ defmodule GorgonSurvey.LogWatcher do
     GenServer.cast(server, {:toggle_collected, id})
   end
 
+  def delete_survey(server \\ __MODULE__, id) do
+    GenServer.cast(server, {:delete_survey, id})
+  end
+
   def clear_surveys(server \\ __MODULE__) do
     GenServer.cast(server, :clear_surveys)
   end
@@ -76,6 +80,14 @@ defmodule GorgonSurvey.LogWatcher do
   @impl true
   def handle_cast({:toggle_collected, id}, state) do
     app_state = AppState.toggle_collected(state.app_state, id)
+    state = %{state | app_state: app_state}
+    broadcast(app_state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:delete_survey, id}, state) do
+    app_state = AppState.delete_survey(state.app_state, id)
     state = %{state | app_state: app_state}
     broadcast(app_state)
     {:noreply, state}

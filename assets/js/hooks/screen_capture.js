@@ -49,7 +49,6 @@ const ScreenCapture = {
     this.invZone = null;   // inventory zone
     this.settingZone = false;  // "map" or "inv" or false
     this.zoneCorner1 = null;
-    this.playerPos = null; // {x_pct, y_pct}
     this.invMarkers = []; // [{x_pct, y_pct, number}]
 
     // Handle canvas clicks for survey placement and zone setting
@@ -86,6 +85,14 @@ const ScreenCapture = {
         return;
       }
 
+      // Click inside inventory zone = mark inventory item
+      if (this.invZone &&
+          x_pct >= this.invZone.x1 && x_pct <= this.invZone.x2 &&
+          y_pct >= this.invZone.y1 && y_pct <= this.invZone.y2) {
+        this.pushEvent("mark_inv_item", { x_pct, y_pct });
+        return;
+      }
+
       if (!this.state.placing_survey) return;
       this.pushEvent("place_survey", {
         id: this.state.placing_survey,
@@ -100,13 +107,35 @@ const ScreenCapture = {
       const rect = this.canvas.getBoundingClientRect();
       const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
       const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
-      // Find nearest survey within threshold
-      const threshold = 3; // percent
-      const nearest = this.state.surveys
-        .filter(s => s.x_pct != null)
-        .find(s => Math.abs(s.x_pct - x_pct) < threshold && Math.abs(s.y_pct - y_pct) < threshold);
-      if (nearest) {
-        this.pushEvent("toggle_collected", { id: nearest.id });
+      // Find closest inventory marker by distance (tight radius)
+      const invThreshold = 1.5; // percent — must be very close
+      let closestInv = null;
+      let closestInvDist = Infinity;
+      for (const m of this.invMarkers) {
+        const d = Math.hypot(m.x_pct - x_pct, m.y_pct - y_pct);
+        if (d < invThreshold && d < closestInvDist) {
+          closestInv = m;
+          closestInvDist = d;
+        }
+      }
+      if (closestInv) {
+        this.pushEvent("remove_inv_mark", { number: closestInv.number });
+        return;
+      }
+
+      // Find closest survey marker (toggle collected)
+      const surveyThreshold = 3; // percent
+      let closestSurvey = null;
+      let closestSurveyDist = Infinity;
+      for (const s of this.state.surveys.filter(s => s.x_pct != null)) {
+        const d = Math.hypot(s.x_pct - x_pct, s.y_pct - y_pct);
+        if (d < surveyThreshold && d < closestSurveyDist) {
+          closestSurvey = s;
+          closestSurveyDist = d;
+        }
+      }
+      if (closestSurvey) {
+        this.pushEvent("toggle_collected", { id: closestSurvey.id });
       }
     });
 
@@ -119,20 +148,11 @@ const ScreenCapture = {
     // Listen for start_capture event from server
     this.handleEvent("start_capture", () => this.startCapture());
 
-    this.scanInterval = null;
     this.scanCanvas = document.createElement("canvas");
 
-    this.handleEvent("start_auto_detect", () => {
-      console.log("[auto-detect] start_auto_detect received");
-      if (this.scanInterval) return;
-      this.scanInterval = setInterval(() => this.captureFrame(), 3000);
-    });
-
-    this.handleEvent("stop_auto_detect", () => {
-      if (this.scanInterval) {
-        clearInterval(this.scanInterval);
-        this.scanInterval = null;
-      }
+    this.handleEvent("scan_once", () => {
+      console.log("[auto-detect] scan_once triggered (500ms delay)");
+      setTimeout(() => this.captureFrame(), 500);
     });
 
     this.handleEvent("start_set_zone", () => {
@@ -167,10 +187,6 @@ const ScreenCapture = {
       this.draw();
     });
 
-    this.handleEvent("player_position", (pos) => {
-      this.playerPos = pos;
-      this.draw();
-    });
   },
 
   async startCapture() {
@@ -253,20 +269,6 @@ const ScreenCapture = {
     const dataUrl = this.scanCanvas.toDataURL("image/png");
     this.pushEvent("scan_frame", { data: dataUrl });
 
-    // Also capture inventory zone if set
-    if (this.invZone) {
-      const iTL = this.canvasToVideoPixel(this.invZone.x1, this.invZone.y1);
-      const iBR = this.canvasToVideoPixel(this.invZone.x2, this.invZone.y2);
-      const isx = iTL.x, isy = iTL.y;
-      const isw = iBR.x - iTL.x, ish = iBR.y - iTL.y;
-      const iScale = Math.min(1, 800 / isw);
-      this.scanCanvas.width = Math.round(isw * iScale);
-      this.scanCanvas.height = Math.round(ish * iScale);
-      const ictx = this.scanCanvas.getContext("2d");
-      ictx.drawImage(this.video, isx, isy, isw, ish, 0, 0, this.scanCanvas.width, this.scanCanvas.height);
-      const invDataUrl = this.scanCanvas.toDataURL("image/png");
-      this.pushEvent("scan_inventory", { data: invDataUrl });
-    }
   },
 
   draw() {
@@ -315,22 +317,6 @@ const ScreenCapture = {
       ctx.fillText(String(s.survey_number), x, y);
     }
 
-    // Draw player position marker
-    if (this.playerPos) {
-      const px = (this.playerPos.x_pct / 100) * W;
-      const py = (this.playerPos.y_pct / 100) * H;
-      const size = 10;
-      ctx.beginPath();
-      ctx.moveTo(px, py - size);
-      ctx.lineTo(px - size * 0.7, py + size * 0.6);
-      ctx.lineTo(px + size * 0.7, py + size * 0.6);
-      ctx.closePath();
-      ctx.fillStyle = "rgba(255,200,50,0.9)";
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
 
     // Draw detect zone rectangle
     if (this.detectZone) {
@@ -411,9 +397,6 @@ const ScreenCapture = {
   destroyed() {
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
-    }
-    if (this.scanInterval) {
-      clearInterval(this.scanInterval);
     }
   }
 };

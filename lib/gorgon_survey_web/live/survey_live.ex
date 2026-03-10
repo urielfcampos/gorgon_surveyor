@@ -59,14 +59,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
       end)
       |> MapSet.new(& &1.survey_number)
 
-    dbg(newly_collected)
-
     inv_markers =
       if MapSet.size(newly_collected) > 0 do
         [collected] = newly_collected |> MapSet.to_list()
 
         remove_and_shift_inv_markers(inv_markers, collected)
-        |> dbg()
       else
         inv_markers
       end

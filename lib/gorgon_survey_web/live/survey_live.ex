@@ -282,9 +282,10 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("remove_inv_mark", %{"number" => number}, socket) do
+    # Right-click removal: just delete the marker, no shifting
     inv_markers =
       (socket.assigns[:inv_markers] || [])
-      |> remove_and_shift_inv_markers(number)
+      |> Enum.reject(fn m -> m.number == number end)
 
     socket =
       socket

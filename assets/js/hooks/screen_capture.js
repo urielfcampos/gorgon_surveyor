@@ -277,11 +277,35 @@ const ScreenCapture = {
     const H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    const placed = this.state.surveys
-      .filter(s => s.x_pct != null && s.y_pct != null && !s.collected);
-    const route = optimizeRoute(placed);
+    const allPlaced = this.state.surveys
+      .filter(s => s.x_pct != null && s.y_pct != null);
+    const collected = allPlaced.filter(s => s.collected);
+    const uncollected = allPlaced.filter(s => !s.collected);
 
-    // Draw path connecting markers in optimized order
+    // Pass 1: Draw collected markers (background layer, lower opacity)
+    ctx.globalAlpha = 0.45;
+    for (const s of collected) {
+      const x = (s.x_pct / 100) * W;
+      const y = (s.y_pct / 100) * H;
+
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,200,0,0.55)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(s.survey_number), x, y);
+    }
+    ctx.globalAlpha = 1.0;
+
+    // Draw route path connecting uncollected markers in optimized order
+    const route = optimizeRoute(uncollected);
     if (route.length > 1) {
       ctx.beginPath();
       ctx.moveTo((route[0].x_pct / 100) * W, (route[0].y_pct / 100) * H);
@@ -295,16 +319,14 @@ const ScreenCapture = {
       ctx.setLineDash([]);
     }
 
-    // Draw markers (all placed, including collected)
-    const allPlaced = this.state.surveys
-      .filter(s => s.x_pct != null && s.y_pct != null);
-    for (const s of allPlaced) {
+    // Pass 2: Draw uncollected markers (foreground layer, full visibility)
+    for (const s of uncollected) {
       const x = (s.x_pct / 100) * W;
       const y = (s.y_pct / 100) * H;
 
       ctx.beginPath();
       ctx.arc(x, y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = s.collected ? "rgba(0,200,0,0.55)" : "rgba(0,150,255,0.55)";
+      ctx.fillStyle = "rgba(0,150,255,0.55)";
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,0.7)";
       ctx.lineWidth = 1.5;

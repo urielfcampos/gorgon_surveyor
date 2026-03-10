@@ -12,8 +12,8 @@ defmodule GorgonSurvey.SurveyDetectorTest do
 
     test "detects a single red circle" do
       {:ok, bg} = Image.new(200, 200, color: [0, 0, 0])
-      {:ok, circle} = Image.Shape.circle(15, fill_color: [255, 0, 0])
-      {:ok, img} = Image.compose(bg, circle, x: 85, y: 85)
+      {:ok, circle} = Image.Shape.circle(10, fill_color: [255, 0, 0])
+      {:ok, img} = Image.compose(bg, circle, x: 90, y: 90)
       {:ok, png} = Image.write(img, :memory, suffix: ".png")
 
       assert {:ok, [{x_pct, y_pct}]} = SurveyDetector.detect(png)
@@ -23,9 +23,9 @@ defmodule GorgonSurvey.SurveyDetectorTest do
 
     test "detects multiple red circles" do
       {:ok, bg} = Image.new(300, 300, color: [0, 0, 0])
-      {:ok, circle} = Image.Shape.circle(10, fill_color: [255, 0, 0])
-      {:ok, img} = Image.compose(bg, circle, x: 40, y: 40)
-      {:ok, img} = Image.compose(img, circle, x: 240, y: 240)
+      {:ok, circle} = Image.Shape.circle(8, fill_color: [255, 0, 0])
+      {:ok, img} = Image.compose(bg, circle, x: 42, y: 42)
+      {:ok, img} = Image.compose(img, circle, x: 242, y: 242)
       {:ok, png} = Image.write(img, :memory, suffix: ".png")
 
       assert {:ok, circles} = SurveyDetector.detect(png)

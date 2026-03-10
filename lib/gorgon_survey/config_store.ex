@@ -25,4 +25,15 @@ defmodule GorgonSurvey.ConfigStore do
     save(config)
     config
   end
+
+  def get_for_session(session_id, key, default \\ nil) do
+    case GorgonSurvey.SessionManager.get_config(session_id, key) do
+      nil -> get(key, default)
+      value -> value
+    end
+  end
+
+  def put_for_session(session_id, key, value) do
+    GorgonSurvey.SessionManager.put_config(session_id, key, value)
+  end
 end

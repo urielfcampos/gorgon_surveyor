@@ -31,13 +31,13 @@ mise exec -- mix precommit
 
 ## Architecture
 
-Phoenix LiveView game companion for Project Gorgon. Single page at `/`, no database.
+Phoenix LiveView game companion for Project Gorgon. Single page at `/`, no database. Multi-session: each browser tab gets its own isolated session with independent LogWatcher and state.
 
 ### Data Flow
 
 ```
-chat.log → FileSystem watcher → LogWatcher GenServer → LogParser (regex)
-  → AppState (pure struct) → PubSub ("game_state")
+chat.log → FileSystem watcher → LogWatcher GenServer (per session) → LogParser (regex)
+  → AppState (pure struct) → PubSub ("game_state:#{session_id}")
   → SurveyLive LiveView → push_event → ScreenCapture JS Hook → canvas
 ```
 
@@ -47,10 +47,11 @@ chat.log → FileSystem watcher → LogWatcher GenServer → LogParser (regex)
 |---|---|
 | `GorgonSurvey.LogParser` | Regex parsing of chat log lines into structured events |
 | `GorgonSurvey.AppState` | Pure state struct — survey/motherlode management, no side effects |
-| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, maintains AppState, broadcasts via PubSub |
-| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json` |
-| `GorgonSurvey.SurveyDetector` | Image processing via Vix/VIPS — red circle detection, player triangle detection, inventory frame detection |
-| `GorgonSurveyWeb.SurveyLive` | LiveView page — sidebar + screen capture, auto-detect, zone setup, player tracking |
+| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, maintains AppState, broadcasts via scoped PubSub |
+| `GorgonSurvey.SessionManager` | Tracks active sessions, manages per-session LogWatcher lifecycle, config overrides, 30s cleanup timers |
+| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json`, session-aware get/put |
+| `GorgonSurvey.SurveyDetector` | Image processing via Vix/VIPS — red circle detection |
+| `GorgonSurveyWeb.SurveyLive` | LiveView page — sidebar + screen capture, auto-detect, zone setup, per-session state |
 | `ScreenCapture` (JS Hook) | Browser getDisplayMedia, canvas overlay, click-to-place, frame capture, route visualization |
 
 ### Supervision Tree
@@ -60,7 +61,10 @@ Application Supervisor (one_for_one)
 ├── Telemetry
 ├── DNSCluster (conditional)
 ├── Phoenix.PubSub
-├── LogWatcher (conditional — only if log_folder configured)
+├── Registry (SessionRegistry)
+├── SessionManager
+├── SessionSupervisor (DynamicSupervisor)
+│   └── LogWatcher (per session)
 └── Endpoint
 ```
 
@@ -69,15 +73,14 @@ Application Supervisor (one_for_one)
 - Screen capture via `getDisplayMedia` API
 - Canvas overlay for survey markers drawn over mirrored video
 - Click to place surveys, right-click to toggle collected
-- Auto-detect mode: periodic frame capture (3s interval) sent to server for image analysis
+- Click-to-mark inventory items in inventory zone
+- Auto-detect on survey: scan_once triggered with 500ms delay when log detects new survey
 - Detection zone / inventory zone: two-click rectangle selection for targeted scanning
-- Player position marker rendering
 - Optimized route visualization (nearest-neighbor TSP)
+- Collected markers drawn at reduced opacity behind uncollected markers
 - State pushed from server via LiveView `push_event`
 
 ### SurveyDetector Image Processing
 
 - **detect/1** — Red circle detection (R>150, G<80, B<80), clustering, returns centroids as percentages
-- **detect_player/1** — Near-white player triangle detection, returns smallest bright cluster
-- **detect_inventory/1** — Gold/brown inventory frame detection, returns sorted grid positions
-- All functions accept PNG binary, return percentage-based coordinates
+- Accepts PNG binary, returns percentage-based coordinates

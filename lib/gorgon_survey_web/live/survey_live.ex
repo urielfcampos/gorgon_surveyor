@@ -6,22 +6,20 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    session_id = generate_session_id()
+
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state")
+      GorgonSurvey.SessionManager.register(session_id)
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
     end
 
-    state =
-      try do
-        LogWatcher.get_state()
-      catch
-        :exit, _ -> GorgonSurvey.AppState.new()
-      end
-
-    log_folder = ConfigStore.get("log_folder", "")
+    log_folder = ConfigStore.get_for_session(session_id, "log_folder", "")
 
     {:ok,
      assign(socket,
-       app_state: state,
+       session_id: session_id,
+       watcher: nil,
+       app_state: GorgonSurvey.AppState.new(),
        sharing: false,
        placing_survey: nil,
        log_folder: log_folder,
@@ -29,17 +27,25 @@ defmodule GorgonSurveyWeb.SurveyLive do
        inv_zone: nil,
        inv_markers: [],
        locked: false,
-       auto_detect_on_survey: ConfigStore.get("auto_detect_on_survey", "false") == "true",
+       auto_detect_on_survey:
+         ConfigStore.get_for_session(session_id, "auto_detect_on_survey", "false") == "true",
        sidebar_tab: "surveys"
      )}
+  end
+
+  @impl true
+  def terminate(_reason, socket) do
+    if session_id = socket.assigns[:session_id] do
+      GorgonSurvey.SessionManager.deregister(session_id)
+    end
+
+    :ok
   end
 
   @impl true
   def handle_info({:state_updated, app_state}, socket) do
     app_state =
       if socket.assigns.locked do
-        # When locked, only update existing surveys (positions, collected status)
-        # but don't add new ones
         existing_ids = MapSet.new(socket.assigns.app_state.surveys, & &1.id)
         surveys = Enum.filter(app_state.surveys, &MapSet.member?(existing_ids, &1.id))
         %{app_state | surveys: surveys}
@@ -102,29 +108,28 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("place_survey", %{"id" => id, "x_pct" => x, "y_pct" => y}, socket) do
-    LogWatcher.place_survey(id, x, y)
+    if w = watcher(socket), do: LogWatcher.place_survey(w, id, x, y)
     {:noreply, assign(socket, placing_survey: nil)}
   end
 
   @impl true
   def handle_event("toggle_collected", %{"id" => id}, socket) do
     id = if is_binary(id), do: String.to_integer(id), else: id
-    LogWatcher.toggle_collected(id)
+    if w = watcher(socket), do: LogWatcher.toggle_collected(w, id)
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("delete_survey", %{"id" => id}, socket) do
     id = if is_binary(id), do: String.to_integer(id), else: id
-    LogWatcher.delete_survey(id)
+    if w = watcher(socket), do: LogWatcher.delete_survey(w, id)
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("replace_marker", %{"id" => id}, socket) do
     id = if is_binary(id), do: String.to_integer(id), else: id
-    # Clear the survey's position so it becomes unplaced, then prompt placement
-    LogWatcher.place_survey(id, nil, nil)
+    if w = watcher(socket), do: LogWatcher.place_survey(w, id, nil, nil)
     {:noreply, assign(socket, placing_survey: id)}
   end
 
@@ -135,7 +140,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("clear_surveys", _params, socket) do
-    LogWatcher.clear_surveys()
+    if w = watcher(socket), do: LogWatcher.clear_surveys(w)
 
     socket =
       socket
@@ -160,12 +165,22 @@ defmodule GorgonSurveyWeb.SurveyLive do
   @impl true
   def handle_event("toggle_auto_detect_on_survey", _params, socket) do
     enabled = !socket.assigns.auto_detect_on_survey
-    ConfigStore.put("auto_detect_on_survey", if(enabled, do: "true", else: "false"))
+
+    ConfigStore.put_for_session(
+      socket.assigns.session_id,
+      "auto_detect_on_survey",
+      if(enabled, do: "true", else: "false")
+    )
+
     {:noreply, assign(socket, auto_detect_on_survey: enabled)}
   end
 
   @impl true
-  def handle_event("set_detect_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
+  def handle_event(
+        "set_detect_zone",
+        %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2},
+        socket
+      ) do
     zone = %{x1: x1, y1: y1, x2: x2, y2: y2}
     require Logger
     Logger.info("[detect zone] set to x1=#{x1} y1=#{y1} x2=#{x2} y2=#{y2}")
@@ -192,7 +207,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
   end
 
   @impl true
-  def handle_event("set_inv_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
+  def handle_event(
+        "set_inv_zone",
+        %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2},
+        socket
+      ) do
     {:noreply, assign(socket, inv_zone: %{x1: x1, y1: y1, x2: x2, y2: y2})}
   end
 
@@ -223,7 +242,6 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
     survey_result = GorgonSurvey.SurveyDetector.detect(png_binary)
 
-    # Map coordinates from cropped image back to full screen
     map_to_screen = fn {x_pct, y_pct} ->
       if zone do
         {zone.x1 + x_pct / 100 * (zone.x2 - zone.x1), zone.y1 + y_pct / 100 * (zone.y2 - zone.y1)}
@@ -232,7 +250,6 @@ defmodule GorgonSurveyWeb.SurveyLive do
       end
     end
 
-    # Place detected survey circles
     case survey_result do
       {:ok, circles} ->
         circles = Enum.map(circles, map_to_screen)
@@ -242,11 +259,13 @@ defmodule GorgonSurveyWeb.SurveyLive do
           "scan_frame: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys"
         )
 
-        Enum.zip(unplaced, circles)
-        |> Enum.each(fn {survey, {x_pct, y_pct}} ->
-          Logger.info("scan_frame: placing survey #{survey.id} at (#{x_pct}, #{y_pct})")
-          LogWatcher.place_survey(survey.id, x_pct, y_pct)
-        end)
+        if w = watcher(socket) do
+          Enum.zip(unplaced, circles)
+          |> Enum.each(fn {survey, {x_pct, y_pct}} ->
+            Logger.info("scan_frame: placing survey #{survey.id} at (#{x_pct}, #{y_pct})")
+            LogWatcher.place_survey(w, survey.id, x_pct, y_pct)
+          end)
+        end
 
       other ->
         Logger.warning("scan_frame: detect returned #{inspect(other)}")
@@ -260,7 +279,6 @@ defmodule GorgonSurveyWeb.SurveyLive do
     surveys = socket.assigns.app_state.surveys
     inv_markers = socket.assigns[:inv_markers] || []
 
-    # Assign the next survey number based on how many markers are already placed
     next_idx = length(inv_markers)
 
     number =
@@ -311,15 +329,18 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("set_log_folder", %{"folder" => folder}, socket) do
+    session_id = socket.assigns.session_id
+    ConfigStore.put_for_session(session_id, "log_folder", folder)
+    # Also save globally as default for new sessions
     ConfigStore.put("log_folder", folder)
     socket = assign(socket, log_folder: folder)
 
-    case GorgonSurvey.Application.start_log_watcher(folder) do
-      {:ok, _pid} ->
-        {:noreply, socket}
+    case GorgonSurvey.SessionManager.start_watcher(session_id, folder) do
+      {:ok, pid} ->
+        {:noreply, assign(socket, watcher: pid)}
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to start watcher: #{reason}")}
+        {:noreply, put_flash(socket, :error, "Failed to start watcher: #{inspect(reason)}")}
     end
   end
 
@@ -373,6 +394,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
       )
 
     Enum.reverse(result.markers)
+  end
+
+  defp watcher(socket), do: socket.assigns[:watcher]
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
   end
 
   defp serialize_state(socket) do

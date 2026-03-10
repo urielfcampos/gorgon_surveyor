@@ -84,10 +84,11 @@ chat.log --> FileSystem watcher --> LogWatcher GenServer --> LogParser (regex)
 |--------|----------------|
 | `GorgonSurvey.LogParser` | Regex parsing of chat log lines into structured events |
 | `GorgonSurvey.AppState` | Pure state struct for survey/motherlode management (no side effects) |
-| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, maintains AppState, broadcasts via PubSub |
-| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json` |
-| `GorgonSurvey.SurveyDetector` | Image processing via Vix/libvips -- red circle detection, player triangle detection, inventory frame detection |
-| `GorgonSurveyWeb.SurveyLive` | LiveView page -- sidebar controls, screen capture, auto-detect, zone setup |
+| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, maintains AppState, broadcasts via scoped PubSub |
+| `GorgonSurvey.SessionManager` | Tracks active sessions, manages per-session LogWatcher lifecycle, config overrides, cleanup timers |
+| `GorgonSurvey.ConfigStore` | JSON config persistence with session-aware get/put |
+| `GorgonSurvey.SurveyDetector` | Image processing via Vix/libvips -- red circle detection |
+| `GorgonSurveyWeb.SurveyLive` | LiveView page -- sidebar controls, screen capture, per-session state |
 | `ScreenCapture` (JS Hook) | Browser getDisplayMedia, canvas overlay, click-to-place, frame capture, route visualization |
 
 ### Supervision Tree
@@ -97,7 +98,10 @@ Application Supervisor (one_for_one)
 +-- Telemetry
 +-- DNSCluster (conditional)
 +-- Phoenix.PubSub
-+-- LogWatcher (conditional -- only starts if log_folder is configured)
++-- Registry (SessionRegistry)
++-- SessionManager
++-- SessionSupervisor (DynamicSupervisor)
+|   +-- LogWatcher (per session)
 +-- Endpoint
 ```
 

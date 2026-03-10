@@ -133,9 +133,9 @@ Expected: FAIL — module not found
 defmodule GorgonSurvey.LogParser do
   @moduledoc "Parses Project Gorgon chat log lines into structured events."
 
-  @survey_regex ~r/The (.+?) is (\d+)m (east|west) and (\d+)m (north|south)\./
-  @motherlode_regex ~r/The treasure is (\d+) meters away/
-  @collected_regex ~r/You collected the survey reward/
+  @survey_regex ~r/The (.+?) is (\d+)m (east|west) and (\d+)m (north|south)\./E
+  @motherlode_regex ~r/The treasure is (\d+) meters away/E
+  @collected_regex ~r/You collected the survey reward/E
 
   def parse_line(line) do
     cond do

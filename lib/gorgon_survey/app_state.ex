@@ -22,7 +22,12 @@ defmodule GorgonSurvey.AppState do
       collected: false
     }
 
-    %{state | surveys: state.surveys ++ [survey], next_id: state.next_id + 1, next_number: state.next_number + 1}
+    %{
+      state
+      | surveys: state.surveys ++ [survey],
+        next_id: state.next_id + 1,
+        next_number: state.next_number + 1
+    }
   end
 
   def place_survey(state, id, x_pct, y_pct) do

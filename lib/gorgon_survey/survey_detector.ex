@@ -29,7 +29,7 @@ defmodule GorgonSurvey.SurveyDetector do
       height = Image.height(img)
 
       [r, g, b | _] = Image.split_bands(img)
-      mask = (r > @red_min) &&& (g < @green_max) &&& (b < @blue_max)
+      mask = r > @red_min &&& g < @green_max &&& b < @blue_max
 
       {:ok, tensor} = Vix.Vips.Image.write_to_tensor(mask)
       {h, w, _bands} = tensor.shape
@@ -46,10 +46,14 @@ defmodule GorgonSurvey.SurveyDetector do
         {xs, ys} = Enum.unzip(c)
         bw = Enum.max(xs) - Enum.min(xs) + 1
         bh = Enum.max(ys) - Enum.min(ys) + 1
-        Logger.info("[detect] cluster: #{n}px, bbox=#{bw}x#{bh}, center=(#{round(cx)},#{round(cy)})")
+
+        Logger.info(
+          "[detect] cluster: #{n}px, bbox=#{bw}x#{bh}, center=(#{round(cx)},#{round(cy)})"
+        )
       end
 
-      clusters = raw_clusters
+      clusters =
+        raw_clusters
         |> Enum.filter(fn cluster ->
           n = length(cluster)
           n >= @min_cluster_pixels and n <= @max_cluster_pixels and circular?(cluster)
@@ -81,7 +85,9 @@ defmodule GorgonSurvey.SurveyDetector do
       [r, g, b | _] = Image.split_bands(img)
 
       # All channels must be bright and close together (near-white, low saturation)
-      bright = (r > @player_brightness_min) &&& (g > @player_brightness_min) &&& (b > @player_brightness_min)
+      bright =
+        r > @player_brightness_min &&& g > @player_brightness_min &&& b > @player_brightness_min
+
       # Check pairwise channel differences are small
       rg_close = Vix.Vips.Operation.abs!(r - g) < @player_channel_spread
       rb_close = Vix.Vips.Operation.abs!(r - b) < @player_channel_spread
@@ -92,7 +98,9 @@ defmodule GorgonSurvey.SurveyDetector do
       {_h, w, _bands} = tensor.shape
 
       coords = mask_pixel_coords(tensor.data, w)
-      clusters = cluster_with_distance(coords, @player_cluster_distance)
+
+      clusters =
+        cluster_with_distance(coords, @player_cluster_distance)
         |> Enum.filter(fn cluster ->
           n = length(cluster)
           n >= @player_min_pixels and n <= @player_max_pixels and circular?(cluster)
@@ -112,6 +120,7 @@ defmodule GorgonSurvey.SurveyDetector do
         [best | _] ->
           {cx, cy} = bbox_center(best)
           {:ok, {cx / width * 100, cy / height * 100}}
+
         [] ->
           {:ok, nil}
       end

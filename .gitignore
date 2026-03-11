@@ -35,3 +35,4 @@ gorgon_survey-*.tar
 npm-debug.log
 /assets/node_modules/
 
+/docs/

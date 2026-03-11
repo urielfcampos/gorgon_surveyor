@@ -101,5 +101,30 @@ defmodule GorgonSurvey.SessionManagerTest do
       SessionManager.register(session_id)
       assert nil == SessionManager.get_watcher(session_id)
     end
+
+    test "start_remote_watcher/1 starts a watcher in remote mode" do
+      session_id = "test-#{System.unique_integer([:positive])}"
+      SessionManager.register(session_id)
+
+      assert {:ok, pid} = SessionManager.start_remote_watcher(session_id)
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+
+      # Verify it accepts ingest_lines (remote mode)
+      GorgonSurvey.LogWatcher.ingest_lines(
+        pid,
+        "The Good Metal Slab is 100m east and 200m north.\n"
+      )
+
+      # No crash = success
+
+      SessionManager.force_cleanup(session_id)
+      Process.sleep(100)
+      refute Process.alive?(pid)
+    end
+
+    test "start_remote_watcher/1 returns error for unknown session" do
+      assert {:error, :unknown_session} = SessionManager.start_remote_watcher("nonexistent")
+    end
   end
 end

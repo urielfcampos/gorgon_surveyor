@@ -39,6 +39,10 @@ defmodule GorgonSurvey.SessionManager do
     GenServer.call(__MODULE__, {:get_watcher, session_id})
   end
 
+  def start_remote_watcher(session_id) do
+    GenServer.call(__MODULE__, {:start_remote_watcher, session_id})
+  end
+
   def put_config(session_id, key, value) do
     GenServer.cast(__MODULE__, {:put_config, session_id, key, value})
   end
@@ -135,6 +139,37 @@ defmodule GorgonSurvey.SessionManager do
           end
         else
           {:reply, {:error, "No log files found in #{log_folder}"}, state}
+        end
+    end
+  end
+
+  @impl true
+  def handle_call({:start_remote_watcher, session_id}, _from, state) do
+    case Map.get(state.sessions, session_id) do
+      nil ->
+        {:reply, {:error, :unknown_session}, state}
+
+      session ->
+        if session.watcher_pid && Process.alive?(session.watcher_pid) do
+          DynamicSupervisor.terminate_child(GorgonSurvey.SessionSupervisor, session.watcher_pid)
+        end
+
+        case DynamicSupervisor.start_child(
+               GorgonSurvey.SessionSupervisor,
+               {GorgonSurvey.LogWatcher,
+                mode: :remote,
+                session_id: session_id,
+                name:
+                  {:via, Registry, {GorgonSurvey.SessionRegistry, {:session, session_id}}}}
+             ) do
+          {:ok, pid} ->
+            session = %{session | watcher_pid: pid}
+
+            {:reply, {:ok, pid},
+             %{state | sessions: Map.put(state.sessions, session_id, session)}}
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
         end
     end
   end

@@ -56,4 +56,45 @@ defmodule GorgonSurvey.LogWatcherTest do
     refute_receive {:state_updated, _}, 1000
     GenServer.stop(pid)
   end
+
+  describe "remote mode" do
+    setup do
+      session_id = "remote-test-#{System.unique_integer([:positive])}"
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
+      {:ok, session_id: session_id}
+    end
+
+    test "starts in remote mode without log path", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+      state = LogWatcher.get_state(pid)
+      assert state.surveys == []
+      GenServer.stop(pid)
+    end
+
+    test "ingest_lines parses and broadcasts survey lines", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+
+      LogWatcher.ingest_lines(pid, "The Good Metal Slab is 815m west and 1441m north.\n")
+
+      assert_receive {:state_updated, %GorgonSurvey.AppState{} = app_state}, 1000
+      assert length(app_state.surveys) == 1
+      [s] = app_state.surveys
+      assert s.name == "Good Metal Slab"
+
+      GenServer.stop(pid)
+    end
+
+    test "multiple ingest_lines accumulate surveys", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+
+      LogWatcher.ingest_lines(pid, "The Good Metal Slab is 815m west and 1441m north.\n")
+      assert_receive {:state_updated, _}, 1000
+
+      LogWatcher.ingest_lines(pid, "The Amazing Geode is 200m east and 300m south.\n")
+      assert_receive {:state_updated, %GorgonSurvey.AppState{} = app_state}, 1000
+      assert length(app_state.surveys) == 2
+
+      GenServer.stop(pid)
+    end
+  end
 end

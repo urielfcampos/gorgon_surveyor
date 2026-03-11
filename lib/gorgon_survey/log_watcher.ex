@@ -8,10 +8,18 @@ defmodule GorgonSurvey.LogWatcher do
   # Client API
 
   def start_link(opts) do
-    log_path = Keyword.fetch!(opts, :log_path)
+    mode = Keyword.get(opts, :mode, :local)
     session_id = Keyword.get(opts, :session_id, "global")
     name = Keyword.get(opts, :name, nil)
-    GenServer.start_link(__MODULE__, {log_path, session_id}, name: name)
+
+    case mode do
+      :local ->
+        log_path = Keyword.fetch!(opts, :log_path)
+        GenServer.start_link(__MODULE__, {:local, log_path, session_id}, name: name)
+
+      :remote ->
+        GenServer.start_link(__MODULE__, {:remote, session_id}, name: name)
+    end
   end
 
   def get_state(server) do
@@ -42,10 +50,14 @@ defmodule GorgonSurvey.LogWatcher do
     GenServer.cast(server, {:add_motherlode_reading, reading})
   end
 
+  def ingest_lines(server, content) do
+    GenServer.cast(server, {:ingest_lines, content})
+  end
+
   # Server callbacks
 
   @impl true
-  def init({log_path, session_id}) do
+  def init({:local, log_path, session_id}) do
     {:ok, watcher_pid} = FileSystem.start_link(dirs: [Path.dirname(log_path)])
     FileSystem.subscribe(watcher_pid)
 
@@ -57,11 +69,22 @@ defmodule GorgonSurvey.LogWatcher do
 
     {:ok,
      %{
+       mode: :local,
        app_state: AppState.new(),
        log_path: log_path,
        session_id: session_id,
        watcher_pid: watcher_pid,
        file_offset: file_size
+     }}
+  end
+
+  @impl true
+  def init({:remote, session_id}) do
+    {:ok,
+     %{
+       mode: :remote,
+       app_state: AppState.new(),
+       session_id: session_id
      }}
   end
 
@@ -111,6 +134,13 @@ defmodule GorgonSurvey.LogWatcher do
   end
 
   @impl true
+  def handle_cast({:ingest_lines, content}, %{mode: :remote} = state) do
+    app_state = process_lines(content, state.app_state)
+    broadcast(state.session_id, app_state)
+    {:noreply, %{state | app_state: app_state}}
+  end
+
+  @impl true
   def handle_cast({:add_motherlode_reading, reading}, state) do
     app_state = AppState.add_motherlode_reading(state.app_state, reading)
     state = %{state | app_state: app_state}
@@ -119,7 +149,7 @@ defmodule GorgonSurvey.LogWatcher do
   end
 
   @impl true
-  def handle_info({:file_event, _pid, {path, _events}}, state) do
+  def handle_info({:file_event, _pid, {path, _events}}, %{mode: :local} = state) do
     if Path.basename(path) == Path.basename(state.log_path) do
       state = read_new_lines(state)
       {:noreply, state}

@@ -163,8 +163,7 @@ defmodule GorgonSurvey.SessionManager do
                {GorgonSurvey.LogWatcher,
                 mode: :remote,
                 session_id: session_id,
-                name:
-                  {:via, Registry, {GorgonSurvey.SessionRegistry, {:session, session_id}}}}
+                name: {:via, Registry, {GorgonSurvey.SessionRegistry, {:session, session_id}}}}
              ) do
           {:ok, pid} ->
             session = %{session | watcher_pid: pid}

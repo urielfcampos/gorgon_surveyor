@@ -43,6 +43,10 @@ defmodule GorgonSurvey.SessionManager do
     GenServer.call(__MODULE__, {:start_remote_watcher, session_id})
   end
 
+  def stop_watcher(session_id) do
+    GenServer.call(__MODULE__, {:stop_watcher, session_id})
+  end
+
   def put_config(session_id, key, value) do
     GenServer.cast(__MODULE__, {:put_config, session_id, key, value})
   end
@@ -183,6 +187,22 @@ defmodule GorgonSurvey.SessionManager do
       end
 
     {:reply, watcher_pid, state}
+  end
+
+  @impl true
+  def handle_call({:stop_watcher, session_id}, _from, state) do
+    case Map.get(state.sessions, session_id) do
+      nil ->
+        {:reply, :ok, state}
+
+      session ->
+        if session.watcher_pid && Process.alive?(session.watcher_pid) do
+          DynamicSupervisor.terminate_child(GorgonSurvey.SessionSupervisor, session.watcher_pid)
+        end
+
+        session = %{session | watcher_pid: nil}
+        {:reply, :ok, %{state | sessions: Map.put(state.sessions, session_id, session)}}
+    end
   end
 
   @impl true

@@ -23,6 +23,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
        sharing: false,
        placing_survey: nil,
        log_folder: log_folder,
+       log_mode: :none,
        detect_zone: nil,
        inv_zone: nil,
        inv_markers: [],
@@ -328,6 +329,35 @@ defmodule GorgonSurveyWeb.SurveyLive do
   end
 
   @impl true
+  def handle_event("start_log_stream", _params, socket) do
+    session_id = socket.assigns.session_id
+
+    case GorgonSurvey.SessionManager.start_remote_watcher(session_id) do
+      {:ok, pid} ->
+        {:noreply, assign(socket, watcher: pid, log_mode: :remote)}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, "Failed to start stream watcher: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def handle_event("log_lines", %{"lines" => lines}, socket) do
+    if w = watcher(socket) do
+      LogWatcher.ingest_lines(w, lines)
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("stop_log_stream", _params, socket) do
+    GorgonSurvey.SessionManager.stop_watcher(socket.assigns.session_id)
+    {:noreply, assign(socket, watcher: nil, log_mode: :none)}
+  end
+
+  @impl true
   def handle_event("set_log_folder", %{"folder" => folder}, socket) do
     session_id = socket.assigns.session_id
     ConfigStore.put_for_session(session_id, "log_folder", folder)
@@ -337,7 +367,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
     case GorgonSurvey.SessionManager.start_watcher(session_id, folder) do
       {:ok, pid} ->
-        {:noreply, assign(socket, watcher: pid)}
+        {:noreply, assign(socket, watcher: pid, log_mode: :local)}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to start watcher: #{inspect(reason)}")}

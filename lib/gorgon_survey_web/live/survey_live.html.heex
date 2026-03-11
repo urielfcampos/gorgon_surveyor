@@ -83,11 +83,32 @@
     <%= if @sidebar_tab == "settings" do %>
       <div class="settings-section">
         <h3>Log Watcher</h3>
-        <form phx-submit="set_log_folder">
-          <label>Log Folder</label>
-          <input type="text" name="folder" value={@log_folder} placeholder="/path/to/game/logs" />
-          <button type="submit">Save & Watch</button>
-        </form>
+
+        <div class="log-mode-toggle">
+          <span class="log-mode-label">Local File</span>
+          <form phx-submit="set_log_folder">
+            <input
+              type="text"
+              name="folder"
+              value={@log_folder}
+              placeholder="/path/to/game/logs"
+            />
+            <button type="submit">Save & Watch</button>
+          </form>
+        </div>
+
+        <div class="log-mode-divider">— or —</div>
+
+        <div class="log-mode-toggle" id="log-streamer" phx-hook="LogStreamer" phx-update="ignore">
+          <span class="log-mode-label">Stream from Browser</span>
+          <p class="hint">
+            Pick your chat.log file. New lines are streamed to the server automatically.
+            <br /><small>Requires Chrome or Edge.</small>
+          </p>
+          <button data-pick-file class="detect-btn">Select Log File</button>
+          <button data-stop-stream class="detect-btn" style="display:none">Stop Streaming</button>
+          <span data-status class="log-stream-status"></span>
+        </div>
       </div>
 
       <div class="settings-section">

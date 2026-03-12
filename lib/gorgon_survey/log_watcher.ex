@@ -46,8 +46,12 @@ defmodule GorgonSurvey.LogWatcher do
     GenServer.cast(server, {:set_zone, zone})
   end
 
-  def add_motherlode_reading(server, reading) do
-    GenServer.cast(server, {:add_motherlode_reading, reading})
+  def add_pending_motherlode(server, meters) do
+    GenServer.cast(server, {:add_pending_motherlode, meters})
+  end
+
+  def complete_motherlode_reading(server, x_pct, y_pct) do
+    GenServer.cast(server, {:complete_motherlode_reading, x_pct, y_pct})
   end
 
   def ingest_lines(server, content) do
@@ -141,8 +145,16 @@ defmodule GorgonSurvey.LogWatcher do
   end
 
   @impl true
-  def handle_cast({:add_motherlode_reading, reading}, state) do
-    app_state = AppState.add_motherlode_reading(state.app_state, reading)
+  def handle_cast({:add_pending_motherlode, meters}, state) do
+    app_state = AppState.add_pending_motherlode(state.app_state, meters)
+    state = %{state | app_state: app_state}
+    broadcast(state.session_id, app_state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:complete_motherlode_reading, x_pct, y_pct}, state) do
+    app_state = AppState.complete_motherlode_reading(state.app_state, x_pct, y_pct)
     state = %{state | app_state: app_state}
     broadcast(state.session_id, app_state)
     {:noreply, state}

@@ -2,7 +2,7 @@ defmodule GorgonSurvey.AppState do
   @moduledoc "Pure data structure and functions for application state."
 
   defstruct surveys: [],
-            motherlode: %{readings: [], estimated_location: nil},
+            motherlode: %{readings: [], estimated_location: nil, pending_meters: nil},
             zone: nil,
             route_order: [],
             next_id: 1,
@@ -58,9 +58,50 @@ defmodule GorgonSurvey.AppState do
     %{state | surveys: [], next_number: 1}
   end
 
-  def add_motherlode_reading(state, reading) do
-    readings = state.motherlode.readings ++ [reading]
-    motherlode = %{state.motherlode | readings: readings}
+  def add_pending_motherlode(state, meters) do
+    motherlode = %{state.motherlode | pending_meters: meters}
     %{state | motherlode: motherlode}
+  end
+
+  def complete_motherlode_reading(%{motherlode: %{pending_meters: nil}} = state, _x_pct, _y_pct) do
+    state
+  end
+
+  def complete_motherlode_reading(state, x_pct, y_pct) do
+    reading = %{x_pct: x_pct, y_pct: y_pct, meters: state.motherlode.pending_meters}
+    readings = state.motherlode.readings ++ [reading]
+
+    estimated_location =
+      if length(readings) >= 3 do
+        GorgonSurvey.Trilateration.estimate(readings)
+      else
+        nil
+      end
+
+    motherlode = %{
+      readings: readings,
+      pending_meters: nil,
+      estimated_location: estimated_location
+    }
+
+    %{state | motherlode: motherlode}
+  end
+
+  def delete_motherlode_reading(state, index) do
+    readings = List.delete_at(state.motherlode.readings, index)
+
+    estimated_location =
+      if length(readings) >= 3 do
+        GorgonSurvey.Trilateration.estimate(readings)
+      else
+        nil
+      end
+
+    motherlode = %{state.motherlode | readings: readings, estimated_location: estimated_location}
+    %{state | motherlode: motherlode}
+  end
+
+  def clear_motherlode(state) do
+    %{state | motherlode: %{readings: [], estimated_location: nil, pending_meters: nil}}
   end
 end

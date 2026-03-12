@@ -24,6 +24,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
        placing_survey: nil,
        log_folder: log_folder,
        log_mode: :none,
+       log_watcher_mode: Application.get_env(:gorgon_survey, :log_watcher_mode, :local),
        detect_zone: nil,
        inv_zone: nil,
        inv_markers: [],
@@ -156,6 +157,21 @@ defmodule GorgonSurveyWeb.SurveyLive do
     socket = assign(socket, sharing: true)
     socket = push_event(socket, "start_capture", %{})
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("stop_sharing", _params, socket) do
+    socket =
+      socket
+      |> assign(sharing: false)
+      |> push_event("stop_capture", %{})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("stopped_sharing", _params, socket) do
+    {:noreply, assign(socket, sharing: false)}
   end
 
   @impl true

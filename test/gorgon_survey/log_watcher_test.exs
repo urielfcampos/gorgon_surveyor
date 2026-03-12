@@ -96,5 +96,46 @@ defmodule GorgonSurvey.LogWatcherTest do
 
       GenServer.stop(pid)
     end
+
+    test "ingest_lines processes motherlode distance as pending", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+
+      LogWatcher.ingest_lines(pid, "The treasure is 500 meters away\n")
+
+      assert_receive {:state_updated, %GorgonSurvey.AppState{} = app_state}, 1000
+      assert app_state.motherlode.pending_meters == 500
+
+      GenServer.stop(pid)
+    end
+
+    test "complete_motherlode_reading stores reading and broadcasts", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+
+      LogWatcher.ingest_lines(pid, "The treasure is 500 meters away\n")
+      assert_receive {:state_updated, _}, 1000
+
+      LogWatcher.complete_motherlode_reading(pid, 50.0, 50.0)
+      assert_receive {:state_updated, %GorgonSurvey.AppState{} = app_state}, 1000
+      assert app_state.motherlode.pending_meters == nil
+      assert length(app_state.motherlode.readings) == 1
+
+      GenServer.stop(pid)
+    end
+
+    test "clear_motherlode resets motherlode state", %{session_id: session_id} do
+      {:ok, pid} = LogWatcher.start_link(mode: :remote, session_id: session_id)
+
+      LogWatcher.ingest_lines(pid, "The treasure is 500 meters away\n")
+      assert_receive {:state_updated, _}, 1000
+      LogWatcher.complete_motherlode_reading(pid, 50.0, 50.0)
+      assert_receive {:state_updated, _}, 1000
+
+      LogWatcher.clear_motherlode(pid)
+      assert_receive {:state_updated, %GorgonSurvey.AppState{} = app_state}, 1000
+      assert app_state.motherlode.readings == []
+      assert app_state.motherlode.pending_meters == nil
+
+      GenServer.stop(pid)
+    end
   end
 end

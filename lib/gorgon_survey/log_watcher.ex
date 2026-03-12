@@ -54,6 +54,14 @@ defmodule GorgonSurvey.LogWatcher do
     GenServer.cast(server, {:complete_motherlode_reading, x_pct, y_pct})
   end
 
+  def delete_motherlode_reading(server, index) do
+    GenServer.cast(server, {:delete_motherlode_reading, index})
+  end
+
+  def clear_motherlode(server) do
+    GenServer.cast(server, :clear_motherlode)
+  end
+
   def ingest_lines(server, content) do
     GenServer.cast(server, {:ingest_lines, content})
   end
@@ -161,6 +169,22 @@ defmodule GorgonSurvey.LogWatcher do
   end
 
   @impl true
+  def handle_cast({:delete_motherlode_reading, index}, state) do
+    app_state = AppState.delete_motherlode_reading(state.app_state, index)
+    state = %{state | app_state: app_state}
+    broadcast(state.session_id, app_state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast(:clear_motherlode, state) do
+    app_state = AppState.clear_motherlode(state.app_state)
+    state = %{state | app_state: app_state}
+    broadcast(state.session_id, app_state)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({:file_event, _pid, {path, _events}}, %{mode: :local} = state) do
     if Path.basename(path) == Path.basename(state.log_path) do
       state = read_new_lines(state)
@@ -207,7 +231,7 @@ defmodule GorgonSurvey.LogWatcher do
     |> Enum.reduce(app_state, fn line, acc ->
       case LogParser.parse_line(line) do
         {:survey, data} -> AppState.add_survey(acc, data)
-        {:motherlode, _data} -> acc
+        {:motherlode, data} -> AppState.add_pending_motherlode(acc, data.meters)
         :survey_collected -> acc
         nil -> acc
       end

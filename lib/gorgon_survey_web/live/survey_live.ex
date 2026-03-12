@@ -31,7 +31,8 @@ defmodule GorgonSurveyWeb.SurveyLive do
        locked: false,
        auto_detect_on_survey:
          ConfigStore.get_for_session(session_id, "auto_detect_on_survey", "false") == "true",
-       sidebar_tab: "surveys"
+       sidebar_tab: "surveys",
+       mode: :survey
      )}
   end
 
@@ -149,6 +150,33 @@ defmodule GorgonSurveyWeb.SurveyLive do
       |> assign(inv_markers: [])
       |> push_event("inv_markers", %{markers: []})
 
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_mode", _params, socket) do
+    new_mode = if socket.assigns.mode == :survey, do: :motherlode, else: :survey
+    socket = assign(socket, mode: new_mode)
+    socket = push_event(socket, "state_updated", serialize_state(socket))
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("place_motherlode_reading", %{"x_pct" => x, "y_pct" => y}, socket) do
+    if w = watcher(socket), do: LogWatcher.complete_motherlode_reading(w, x, y)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("clear_motherlode", _params, socket) do
+    if w = watcher(socket), do: LogWatcher.clear_motherlode(w)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("delete_motherlode_reading", %{"index" => index}, socket) do
+    index = if is_binary(index), do: String.to_integer(index), else: index
+    if w = watcher(socket), do: LogWatcher.delete_motherlode_reading(w, index)
     {:noreply, socket}
   end
 
@@ -450,8 +478,10 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   defp serialize_state(socket) do
     app_state = socket.assigns.app_state
+    mode = socket.assigns[:mode] || :survey
 
     %{
+      mode: mode,
       surveys:
         Enum.map(app_state.surveys, fn s ->
           %{
@@ -465,7 +495,19 @@ defmodule GorgonSurveyWeb.SurveyLive do
             collected: s.collected
           }
         end),
-      placing_survey: socket.assigns.placing_survey
+      placing_survey: socket.assigns.placing_survey,
+      motherlode: %{
+        readings:
+          Enum.map(app_state.motherlode.readings, fn r ->
+            %{x_pct: r.x_pct, y_pct: r.y_pct, meters: r.meters}
+          end),
+        pending_meters: app_state.motherlode.pending_meters,
+        estimated_location:
+          case app_state.motherlode.estimated_location do
+            {x, y} -> %{x_pct: x, y_pct: y}
+            nil -> nil
+          end
+      }
     }
   end
 end

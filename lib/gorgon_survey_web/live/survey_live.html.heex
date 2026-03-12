@@ -33,52 +33,107 @@
     </div>
 
     <%= if @sidebar_tab == "surveys" do %>
-      <div class="survey-list">
-        <%= for survey <- @app_state.surveys do %>
-          <div class={"survey-item #{if survey.collected, do: "collected"}"}>
-            <span class="survey-num">{survey.survey_number}</span>
-            <span class="survey-name">{survey.name}</span>
-            <span class="survey-offset">{survey.dx}, {survey.dy}</span>
-            <div class="survey-actions">
-              <button phx-click="toggle_collected" phx-value-id={survey.id}>
-                {if survey.collected, do: "Undo", else: "Done"}
-              </button>
-              <button phx-click="replace_marker" phx-value-id={survey.id} title="Replace marker">
-                &#8982;
-              </button>
-              <button
-                phx-click="delete_survey"
-                phx-value-id={survey.id}
-                class="delete-btn"
-                title="Delete survey"
-              >
-                &times;
-              </button>
-            </div>
-          </div>
-        <% end %>
+      <div class="mode-toggle">
+        <button
+          phx-click="toggle_mode"
+          class={"mode-btn #{if @mode == :survey, do: "active"}"}
+        >
+          Survey
+        </button>
+        <button
+          phx-click="toggle_mode"
+          class={"mode-btn #{if @mode == :motherlode, do: "active"}"}
+        >
+          Motherlode
+        </button>
       </div>
 
-      <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
-      <button phx-click="toggle_lock" class={"detect-btn #{if @locked, do: "active"}"}>
-        {if @locked, do: "Unlock Surveys", else: "Lock Surveys"}
-      </button>
+      <%= if @mode == :survey do %>
+        <div class="survey-list">
+          <%= for survey <- @app_state.surveys do %>
+            <div class={"survey-item #{if survey.collected, do: "collected"}"}>
+              <span class="survey-num">{survey.survey_number}</span>
+              <span class="survey-name">{survey.name}</span>
+              <span class="survey-offset">{survey.dx}, {survey.dy}</span>
+              <div class="survey-actions">
+                <button phx-click="toggle_collected" phx-value-id={survey.id}>
+                  {if survey.collected, do: "Undo", else: "Done"}
+                </button>
+                <button phx-click="replace_marker" phx-value-id={survey.id} title="Replace marker">
+                  &#8982;
+                </button>
+                <button
+                  phx-click="delete_survey"
+                  phx-value-id={survey.id}
+                  class="delete-btn"
+                  title="Delete survey"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          <% end %>
+        </div>
 
-      <%= if @detect_zone do %>
-        <button phx-click="clear_detect_zone" class="detect-btn">Clear Map Zone</button>
-      <% else %>
-        <button phx-click="start_set_zone" class="detect-btn">Set Map Zone</button>
-      <% end %>
-      <%= if @inv_zone do %>
-        <button phx-click="clear_inv_zone" class="detect-btn">Clear Inv Zone</button>
-        <%= if @inv_markers != [] do %>
-          <button phx-click="undo_inv_mark" class="detect-btn">
-            Undo Mark ({length(@inv_markers)})
-          </button>
+        <button phx-click="clear_surveys" class="clear-btn">Clear All</button>
+        <button phx-click="toggle_lock" class={"detect-btn #{if @locked, do: "active"}"}>
+          {if @locked, do: "Unlock Surveys", else: "Lock Surveys"}
+        </button>
+
+        <%= if @detect_zone do %>
+          <button phx-click="clear_detect_zone" class="detect-btn">Clear Map Zone</button>
+        <% else %>
+          <button phx-click="start_set_zone" class="detect-btn">Set Map Zone</button>
         <% end %>
-        <p class="hint">Click inventory items to mark them</p>
+        <%= if @inv_zone do %>
+          <button phx-click="clear_inv_zone" class="detect-btn">Clear Inv Zone</button>
+          <%= if @inv_markers != [] do %>
+            <button phx-click="undo_inv_mark" class="detect-btn">
+              Undo Mark ({length(@inv_markers)})
+            </button>
+          <% end %>
+          <p class="hint">Click inventory items to mark them</p>
+        <% else %>
+          <button phx-click="start_set_inv_zone" class="detect-btn">Set Inv Zone</button>
+        <% end %>
       <% else %>
-        <button phx-click="start_set_inv_zone" class="detect-btn">Set Inv Zone</button>
+        <div class="motherlode-section">
+          <%= if @app_state.motherlode.pending_meters do %>
+            <div class="placement-prompt">
+              Distance: {@app_state.motherlode.pending_meters}m — Click your position on the map
+            </div>
+          <% end %>
+
+          <div class="reading-list">
+            <%= for {reading, index} <- Enum.with_index(@app_state.motherlode.readings) do %>
+              <div class="reading-item">
+                <span class="reading-num">{index + 1}</span>
+                <span class="reading-dist">{reading.meters}m</span>
+                <button
+                  phx-click="delete_motherlode_reading"
+                  phx-value-index={index}
+                  class="delete-btn"
+                  title="Delete reading"
+                >
+                  &times;
+                </button>
+              </div>
+            <% end %>
+          </div>
+
+          <p class="hint">
+            <%= cond do %>
+              <% length(@app_state.motherlode.readings) >= 3 && @app_state.motherlode.estimated_location -> %>
+                Estimated location found
+              <% length(@app_state.motherlode.readings) < 3 -> %>
+                Need {3 - length(@app_state.motherlode.readings)} more reading(s)
+              <% true -> %>
+                Computing...
+            <% end %>
+          </p>
+
+          <button phx-click="clear_motherlode" class="clear-btn">Clear Readings</button>
+        </div>
       <% end %>
     <% end %>
 

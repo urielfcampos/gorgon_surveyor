@@ -93,6 +93,12 @@ const ScreenCapture = {
         return;
       }
 
+      // Motherlode mode: click places player position for pending reading
+      if (this.state.mode === "motherlode" && this.state.motherlode?.pending_meters) {
+        this.pushEvent("place_motherlode_reading", { x_pct, y_pct });
+        return;
+      }
+
       if (!this.state.placing_survey) return;
       this.pushEvent("place_survey", {
         id: this.state.placing_survey,
@@ -107,6 +113,9 @@ const ScreenCapture = {
       const rect = this.canvas.getBoundingClientRect();
       const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
       const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
+
+      if (this.state.mode === "motherlode") return;
+
       // Find closest inventory marker by distance (tight radius)
       const invThreshold = 1.5; // percent — must be very close
       let closestInv = null;
@@ -292,6 +301,26 @@ const ScreenCapture = {
     const H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
 
+    if (this.state.mode === "motherlode") {
+      this.drawMotherlode();
+      // Still draw zone corner if setting
+      if (this.settingZone && this.zoneCorner1) {
+        const cx = (this.zoneCorner1.x / 100) * W;
+        const cy = (this.zoneCorner1.y / 100) * H;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,0,0.9)";
+        ctx.fill();
+      }
+      // Cursor
+      if (this.state.motherlode?.pending_meters) {
+        this.canvas.style.cursor = "crosshair";
+      } else {
+        this.canvas.style.cursor = "default";
+      }
+      return;
+    }
+
     const allPlaced = this.state.surveys
       .filter(s => s.x_pct != null && s.y_pct != null);
     const collected = allPlaced.filter(s => s.collected);
@@ -428,6 +457,61 @@ const ScreenCapture = {
       this.canvas.style.cursor = "crosshair";
     } else {
       this.canvas.style.cursor = "default";
+    }
+  },
+
+  drawMotherlode() {
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const ml = this.state.motherlode;
+    if (!ml) return;
+
+    // Draw reading position dots
+    for (let i = 0; i < ml.readings.length; i++) {
+      const r = ml.readings[i];
+      const x = (r.x_pct / 100) * W;
+      const y = (r.y_pct / 100) * H;
+
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(200,200,200,0.6)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "bold 8px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), x, y);
+    }
+
+    // Draw estimated location marker (orange diamond)
+    if (ml.estimated_location) {
+      const ex = (ml.estimated_location.x_pct / 100) * W;
+      const ey = (ml.estimated_location.y_pct / 100) * H;
+      const size = 12;
+
+      ctx.beginPath();
+      ctx.moveTo(ex, ey - size);
+      ctx.lineTo(ex + size, ey);
+      ctx.lineTo(ex, ey + size);
+      ctx.lineTo(ex - size, ey);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(255,165,0,0.8)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // "X" label
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("X", ex, ey);
     }
   },
 

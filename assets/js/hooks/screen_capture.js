@@ -148,6 +148,8 @@ const ScreenCapture = {
     // Listen for start_capture event from server
     this.handleEvent("start_capture", () => this.startCapture());
 
+    this.handleEvent("stop_capture", () => this.stopCapture());
+
     this.scanCanvas = document.createElement("canvas");
 
     this.handleEvent("scan_once", () => {
@@ -193,12 +195,25 @@ const ScreenCapture = {
     if (this.stream) return;
     try {
       this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      this.stream.addEventListener("inactive", () => {
+        this.stopCapture();
+        this.pushEvent("stopped_sharing", {});
+      });
       this.video.srcObject = this.stream;
       this.video.onloadedmetadata = () => this.resizeCanvas();
       window.addEventListener("resize", () => this.resizeCanvas());
     } catch (err) {
       console.error("Screen capture failed:", err);
     }
+  },
+
+  stopCapture() {
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+    this.video.srcObject = null;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   },
 
   resizeCanvas() {
@@ -417,9 +432,7 @@ const ScreenCapture = {
   },
 
   destroyed() {
-    if (this.stream) {
-      this.stream.getTracks().forEach(t => t.stop());
-    }
+    this.stopCapture();
   }
 };
 

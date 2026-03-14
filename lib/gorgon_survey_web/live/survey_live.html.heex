@@ -33,20 +33,9 @@
     </div>
 
     <%= if @sidebar_tab == "surveys" do %>
-      <div class="mode-toggle">
-        <button
-          phx-click="toggle_mode"
-          class={"mode-btn #{if @mode == :survey, do: "active"}"}
-        >
-          Survey
-        </button>
-        <button
-          phx-click="toggle_mode"
-          class={"mode-btn #{if @mode == :motherlode, do: "active"}"}
-        >
-          Motherlode
-        </button>
-      </div>
+      <button phx-click="toggle_mode" class="mode-toggle-btn">
+        Mode: {if @mode == :survey, do: "Survey", else: "Motherlode"}
+      </button>
 
       <%= if @mode == :survey do %>
         <div class="survey-list">
@@ -155,14 +144,21 @@
             </form>
           </div>
         <% else %>
-          <div class="log-mode-toggle" id="log-streamer" phx-hook="LogStreamer" phx-update="ignore">
+          <div
+            class="log-mode-toggle"
+            id="log-streamer"
+            phx-hook="LogStreamer"
+            phx-update="ignore"
+          >
             <span class="log-mode-label">Stream from Browser</span>
             <p class="hint">
               Pick your chat.log file. New lines are streamed to the server automatically.
               <br /><small>Chrome/Edge: auto-updates. Firefox: re-select file to refresh.</small>
             </p>
             <button data-pick-file class="detect-btn">Select Log File</button>
-            <button data-stop-stream class="detect-btn" style="display:none">Stop Streaming</button>
+            <button data-stop-stream class="detect-btn" style="display:none">
+              Stop Streaming
+            </button>
             <span data-status class="log-stream-status"></span>
           </div>
         <% end %>

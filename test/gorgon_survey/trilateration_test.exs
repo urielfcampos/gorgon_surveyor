@@ -33,9 +33,7 @@ defmodule GorgonSurvey.TrilaterationTest do
     readings =
       for {px, py} <- [{20.0, 20.0}, {80.0, 80.0}, {10.0, 60.0}, {90.0, 10.0}] do
         meters =
-          :math.sqrt(
-            :math.pow(px - elem(target, 0), 2) + :math.pow(py - elem(target, 1), 2)
-          )
+          :math.sqrt(:math.pow(px - elem(target, 0), 2) + :math.pow(py - elem(target, 1), 2))
 
         %{x_pct: px, y_pct: py, meters: meters}
       end

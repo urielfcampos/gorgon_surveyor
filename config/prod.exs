@@ -26,6 +26,9 @@ config :swoosh, api_client: Swoosh.ApiClient.Req
 # Disable Swoosh Local Memory Storage
 config :swoosh, local: false
 
+# Log watcher mode: :local (filesystem watcher) or :remote (browser streams log lines)
+config :gorgon_survey, :log_watcher_mode, :remote
+
 # Do not print debug messages in production
 config :logger, level: :info
 

@@ -1,16 +1,22 @@
 const LogStreamer = {
   mounted() {
     this.fileHandle = null;
+    this.file = null;
     this.fileOffset = 0;
     this.pollInterval = null;
+    this.useNativeAPI = !!window.showOpenFilePicker;
     this.statusEl = this.el.querySelector("[data-status]");
     this.pickBtn = this.el.querySelector("[data-pick-file]");
     this.stopBtn = this.el.querySelector("[data-stop-stream]");
 
-    // Hide entire section if browser doesn't support File System Access API
-    if (!window.showOpenFilePicker) {
-      this.el.style.display = "none";
-      return;
+    if (!this.useNativeAPI) {
+      // Create a hidden file input as fallback
+      this.fileInput = document.createElement("input");
+      this.fileInput.type = "file";
+      this.fileInput.accept = ".log,.txt,text/plain";
+      this.fileInput.style.display = "none";
+      this.el.appendChild(this.fileInput);
+      this.fileInput.addEventListener("change", (e) => this.onFallbackFileSelected(e));
     }
 
     if (this.pickBtn) {
@@ -25,6 +31,14 @@ const LogStreamer = {
   },
 
   async pickFile() {
+    if (this.useNativeAPI) {
+      await this.pickFileNative();
+    } else {
+      this.fileInput.click();
+    }
+  },
+
+  async pickFileNative() {
     try {
       const [handle] = await window.showOpenFilePicker({
         types: [{ description: "Log files", accept: { "text/plain": [".log", ".txt"] } }],
@@ -53,6 +67,22 @@ const LogStreamer = {
     }
   },
 
+  onFallbackFileSelected(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    this.file = file;
+    this.fileOffset = file.size;
+
+    this.pushEvent("start_log_stream", {});
+
+    this.setStatus("streaming", `Watching: ${file.name} (re-select to refresh)`);
+    this.pickBtn.textContent = "Re-select to Refresh";
+    this.pickBtn.classList.add("active");
+    this.stopBtn.style.display = "";
+    this.startPolling();
+  },
+
   startPolling() {
     this.stopPolling();
     this.pollInterval = setInterval(() => this.pollFile(), 1000);
@@ -66,6 +96,14 @@ const LogStreamer = {
   },
 
   async pollFile() {
+    if (this.useNativeAPI) {
+      await this.pollFileNative();
+    } else {
+      await this.pollFileFallback();
+    }
+  },
+
+  async pollFileNative() {
     if (!this.fileHandle) return;
 
     try {
@@ -91,14 +129,37 @@ const LogStreamer = {
     }
   },
 
+  async pollFileFallback() {
+    // With <input type="file">, the File object is a snapshot from selection time.
+    // We can't detect new content by polling. The user must re-select the file
+    // to pick up new lines. Polling is a no-op here but kept running so that
+    // re-selection (which updates this.file and this.fileOffset) works seamlessly.
+    if (!this.file) return;
+
+    try {
+      // Attempt to read from offset — in some browsers this may pick up changes
+      const blob = this.file.slice(this.fileOffset);
+      const text = await blob.text();
+
+      if (text.length > 0) {
+        this.fileOffset += text.length;
+        this.pushEvent("log_lines", { lines: text });
+      }
+    } catch (_err) {
+      // Silently ignore — user will re-select to refresh
+    }
+  },
+
   stopStream() {
     this.stopPolling();
     this.fileHandle = null;
+    this.file = null;
     this.fileOffset = 0;
     this.setStatus("idle", "");
     this.pickBtn.textContent = "Select Log File";
     this.pickBtn.classList.remove("active");
     this.stopBtn.style.display = "none";
+    if (this.fileInput) this.fileInput.value = "";
     this.pushEvent("stop_log_stream", {});
   },
 

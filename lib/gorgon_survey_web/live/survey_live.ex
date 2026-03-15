@@ -404,17 +404,23 @@ defmodule GorgonSurveyWeb.SurveyLive do
   @impl true
   def handle_event("set_log_folder", %{"folder" => folder}, socket) do
     session_id = socket.assigns.session_id
-    ConfigStore.put_for_session(session_id, "log_folder", folder)
-    # Also save globally as default for new sessions
-    ConfigStore.put("log_folder", folder)
-    socket = assign(socket, log_folder: folder)
 
-    case GorgonSurvey.SessionManager.start_watcher(session_id, folder) do
-      {:ok, pid} ->
-        {:noreply, assign(socket, watcher: pid, log_mode: :local)}
+    if socket.assigns.watcher do
+      GorgonSurvey.SessionManager.stop_watcher(session_id)
+      {:noreply, assign(socket, watcher: nil, log_mode: :none)}
+    else
+      ConfigStore.put_for_session(session_id, "log_folder", folder)
+      # Also save globally as default for new sessions
+      ConfigStore.put("log_folder", folder)
+      socket = assign(socket, log_folder: folder)
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to start watcher: #{inspect(reason)}")}
+      case GorgonSurvey.SessionManager.start_watcher(session_id, folder) do
+        {:ok, pid} ->
+          {:noreply, assign(socket, watcher: pid, log_mode: :local)}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Failed to start watcher: #{inspect(reason)}")}
+      end
     end
   end
 

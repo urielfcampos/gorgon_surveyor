@@ -1,9 +1,7 @@
 <div class="app-layout">
   <main class="main-area">
     <div id="screen-capture" phx-hook="ScreenCapture" phx-update="ignore"></div>
-    <%= if @sharing do %>
-      <button phx-click="stop_sharing" class="share-btn stop-btn">Stop Sharing</button>
-    <% else %>
+    <%= unless @sharing do %>
       <button phx-click="start_sharing" class="share-btn">Share Screen</button>
     <% end %>
 
@@ -36,6 +34,8 @@
       <button phx-click="toggle_mode" class="mode-toggle-btn">
         Mode: {if @mode == :survey, do: "Survey", else: "Motherlode"}
       </button>
+
+      <hr class="sidebar-divider" />
 
       <%= if @mode == :survey do %>
         <div class="survey-list">
@@ -140,8 +140,16 @@
                 value={@log_folder}
                 placeholder="/path/to/game/logs"
               />
-              <button type="submit">Save & Watch</button>
+              <button type="submit">
+                {if @watcher, do: "Stop Watching", else: "Save & Watch"}
+              </button>
             </form>
+            <%= if @watcher do %>
+              <div class="watcher-status">
+                <span class="watcher-dot"></span>
+                <span>Watching for changes...</span>
+              </div>
+            <% end %>
           </div>
         <% else %>
           <div
@@ -177,6 +185,13 @@
         <p class="hint">
           Automatically scan and place marker when a new survey is detected in the log
         </p>
+      </div>
+    <% end %>
+
+    <%= if @sharing do %>
+      <hr class="sidebar-divider" />
+      <div class="section">
+        <button phx-click="stop_sharing" class="sidebar-stop-btn">Stop Sharing</button>
       </div>
     <% end %>
   </aside>

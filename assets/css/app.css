@@ -14,7 +14,7 @@
    curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
    Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
 @plugin "../vendor/daisyui" {
-  themes: false;
+    themes: false;
 }
 
 /* daisyUI theme plugin. You can update this file by fetching the latest version with:
@@ -22,73 +22,73 @@
   We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
   on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
 @plugin "../vendor/daisyui-theme" {
-  name: "dark";
-  default: false;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+    name: "dark";
+    default: false;
+    prefersdark: true;
+    color-scheme: "dark";
+    --color-base-100: oklch(30.33% 0.016 252.42);
+    --color-base-200: oklch(25.26% 0.014 253.1);
+    --color-base-300: oklch(20.15% 0.012 254.09);
+    --color-base-content: oklch(97.807% 0.029 256.847);
+    --color-primary: oklch(58% 0.233 277.117);
+    --color-primary-content: oklch(96% 0.018 272.314);
+    --color-secondary: oklch(58% 0.233 277.117);
+    --color-secondary-content: oklch(96% 0.018 272.314);
+    --color-accent: oklch(60% 0.25 292.717);
+    --color-accent-content: oklch(96% 0.016 293.756);
+    --color-neutral: oklch(37% 0.044 257.287);
+    --color-neutral-content: oklch(98% 0.003 247.858);
+    --color-info: oklch(58% 0.158 241.966);
+    --color-info-content: oklch(97% 0.013 236.62);
+    --color-success: oklch(60% 0.118 184.704);
+    --color-success-content: oklch(98% 0.014 180.72);
+    --color-warning: oklch(66% 0.179 58.318);
+    --color-warning-content: oklch(98% 0.022 95.277);
+    --color-error: oklch(58% 0.253 17.585);
+    --color-error-content: oklch(96% 0.015 12.422);
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.21875rem;
+    --size-field: 0.21875rem;
+    --border: 1.5px;
+    --depth: 1;
+    --noise: 0;
 }
 
 @plugin "../vendor/daisyui-theme" {
-  name: "light";
-  default: true;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+    name: "light";
+    default: true;
+    prefersdark: false;
+    color-scheme: "light";
+    --color-base-100: oklch(98% 0 0);
+    --color-base-200: oklch(96% 0.001 286.375);
+    --color-base-300: oklch(92% 0.004 286.32);
+    --color-base-content: oklch(21% 0.006 285.885);
+    --color-primary: oklch(70% 0.213 47.604);
+    --color-primary-content: oklch(98% 0.016 73.684);
+    --color-secondary: oklch(55% 0.027 264.364);
+    --color-secondary-content: oklch(98% 0.002 247.839);
+    --color-accent: oklch(0% 0 0);
+    --color-accent-content: oklch(100% 0 0);
+    --color-neutral: oklch(44% 0.017 285.786);
+    --color-neutral-content: oklch(98% 0 0);
+    --color-info: oklch(62% 0.214 259.815);
+    --color-info-content: oklch(97% 0.014 254.604);
+    --color-success: oklch(70% 0.14 182.503);
+    --color-success-content: oklch(98% 0.014 180.72);
+    --color-warning: oklch(66% 0.179 58.318);
+    --color-warning-content: oklch(98% 0.022 95.277);
+    --color-error: oklch(58% 0.253 17.585);
+    --color-error-content: oklch(96% 0.015 12.422);
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.21875rem;
+    --size-field: 0.21875rem;
+    --border: 1.5px;
+    --depth: 1;
+    --noise: 0;
 }
 
 /* Add variants based on LiveView classes */
@@ -100,247 +100,300 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Make LiveView wrapper divs transparent for layout */
-[data-phx-session], [data-phx-teleported-src] { display: contents }
+[data-phx-session],
+[data-phx-teleported-src] {
+    display: contents;
+}
 
 /* This file is for your main application CSS */
 
 .app-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background: #1a1a2e;
-  color: #eee;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: #1a1a2e;
+    color: #eee;
 }
 
 .main-area {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #000;
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
 }
 
 #screen-capture {
-  width: 100%;
-  height: 100%;
-  position: relative;
+    width: 100%;
+    height: 100%;
+    position: relative;
 }
 
 .share-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 16px 32px;
-  font-size: 18px;
-  background: #3a86ff;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 16px 32px;
+    font-size: 18px;
+    background: #3a86ff;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
 }
 
 .share-btn:hover {
-  background: #2a76ef;
+    background: #2a76ef;
+}
+
+.sidebar-stop-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    background: #e63946;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+
+.sidebar-stop-btn:hover {
+    background: #c5303c;
 }
 
 .placement-prompt {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 100, 200, 0.85);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: bold;
-  z-index: 10;
-  pointer-events: none;
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 100, 200, 0.85);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    z-index: 10;
+    pointer-events: none;
 }
 
 .sidebar {
-  width: 280px;
-  padding: 16px;
-  background: #16213e;
-  overflow-y: auto;
-  border-left: 1px solid #333;
+    width: 280px;
+    padding: 16px;
+    background: #16213e;
+    overflow-y: auto;
+    border-left: 1px solid #333;
 }
 
 .sidebar h2 {
-  margin: 0 0 12px;
-  font-size: 16px;
+    margin: 0 0 12px;
+    font-size: 16px;
 }
 
 .tab-bar {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 6px 12px;
-  background: #1a1a3e;
-  color: #aaa;
-  border: 1px solid #333;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
-  font-size: 13px;
+    flex: 1;
+    padding: 6px 12px;
+    background: #1a1a3e;
+    color: #aaa;
+    border: 1px solid #333;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-size: 13px;
 }
 
 .tab-btn.active {
-  background: #2a2a5e;
-  color: #fff;
-  border-bottom-color: #2a2a5e;
+    background: #2a2a5e;
+    color: #fff;
+    border-bottom-color: #2a2a5e;
 }
 
 .mode-toggle-btn {
-  width: 100%;
-  padding: 8px;
-  background: #2a2a5e;
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 12px;
+    width: 100%;
+    padding: 8px;
+    background: #2a2a5e;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 12px;
 }
 
 .mode-toggle-btn:hover {
-  background: #3a3a6e;
+    background: #3a3a6e;
 }
 
 .survey-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 .survey-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background: #1a1a3e;
-  border-radius: 4px;
-  font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #1a1a3e;
+    border-radius: 4px;
+    font-size: 13px;
 }
 
 .survey-item.collected {
-  opacity: 0.5;
+    opacity: 0.5;
 }
 
 .survey-actions {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
 }
 
 .survey-actions button {
-  padding: 2px 6px;
-  font-size: 12px;
+    padding: 2px 6px;
+    font-size: 12px;
 }
 
 .delete-btn {
-  color: #ff6b6b;
-  font-size: 16px !important;
-  line-height: 1;
+    color: #ff6b6b;
+    font-size: 16px !important;
+    line-height: 1;
 }
 
 .survey-num {
-  background: #3a86ff;
-  color: #fff;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: bold;
-  flex-shrink: 0;
+    background: #3a86ff;
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    flex-shrink: 0;
 }
 
 .survey-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .survey-offset {
-  color: #888;
-  font-size: 11px;
+    color: #888;
+    font-size: 11px;
 }
 
 .clear-btn {
-  width: 100%;
-  padding: 6px;
-  background: #a22;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+    width: 100%;
+    padding: 6px;
+    background: #a22;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .clear-btn:hover {
-  background: #c33;
+    background: #c33;
 }
 
 .detect-btn {
-  width: 100%;
-  padding: 6px;
-  background: #2a5a2a;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 4px;
+    width: 100%;
+    padding: 6px;
+    background: #2a5a2a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 4px;
 }
 
 .detect-btn.active {
-  background: #5a2a2a;
+    background: #5a2a2a;
 }
 
 .settings-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #333;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #333;
 }
 
 .settings-section h3 {
-  margin: 0 0 8px;
-  font-size: 14px;
+    margin: 0 0 8px;
+    font-size: 14px;
 }
 
 .settings-section label {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 4px;
-  color: #aaa;
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: #aaa;
 }
 
 .settings-section input[type="text"] {
-  width: 100%;
-  padding: 4px 8px;
-  background: #1a1a3e;
-  border: 1px solid #444;
-  color: #eee;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-bottom: 8px;
-  box-sizing: border-box;
+    width: 100%;
+    padding: 4px 8px;
+    background: #1a1a3e;
+    border: 1px solid #444;
+    color: #eee;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
 }
 
 .settings-section button {
-  padding: 4px 12px;
-  background: #3a86ff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+    padding: 4px 12px;
+    background: #3a86ff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.section {
+    border: none;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.watcher-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #8f8;
+}
+
+.watcher-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4caf50;
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.sidebar-divider {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 12px 0;
 }

@@ -28,6 +28,13 @@
       >
         Settings
       </button>
+      <button
+        phx-click="switch_tab"
+        phx-value-tab="help"
+        class={"tab-btn #{if @sidebar_tab == "help", do: "active"}"}
+      >
+        Help
+      </button>
     </div>
 
     <%= if @sidebar_tab == "surveys" do %>
@@ -190,6 +197,99 @@
         </button>
         <p class="hint">
           Automatically scan and place marker when a new survey is detected in the log
+        </p>
+      </div>
+    <% end %>
+
+    <%= if @sidebar_tab == "help" do %>
+      <div class="settings-section">
+        <h3>Getting Started</h3>
+        <p class="hint">
+          Gorgon Survey is a companion tool for Project Gorgon's geological surveys.
+          Follow these steps to get set up.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>1. Share Your Screen</h3>
+        <p class="hint">
+          Click the <strong>Share Screen</strong>
+          button and select your Project Gorgon game window.
+          The game video will appear in the main area with a canvas overlay for markers.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>2. Set Up Log Streaming</h3>
+        <p class="hint">
+          Go to the <strong>Settings</strong>
+          tab and select your game's <code>chat.log</code>
+          file.
+          New lines are streamed automatically so the app can detect survey events.
+          On Chrome/Edge the file auto-updates; on Firefox you'll need to re-select to refresh.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>3. Set Detection Zone</h3>
+        <p class="hint">
+          On the <strong>Surveys</strong> tab, click <strong>Set Map Zone</strong> and click twice
+          on the screen to draw a rectangle around your minimap area.
+          This tells auto-detect where to look for survey markers.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>4. Set Inventory Zone</h3>
+        <p class="hint">
+          Click <strong>Set Inv Zone</strong> and draw a rectangle around your inventory area.
+          You can then click inventory items to mark which surveys you're carrying.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>5. Enable Auto-Detect</h3>
+        <p class="hint">
+          In <strong>Settings</strong>, toggle <strong>Auto-place on survey</strong> to ON.
+          When a new survey is detected in the log, the app will automatically scan
+          the detection zone and place a marker on the map.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>6. Placing Surveys</h3>
+        <p class="hint">
+          As surveys appear in the chat log, they show up in the sidebar list.
+          With auto-detect ON, markers are placed automatically on the map.
+          With auto-detect OFF, click on the map to manually place each survey marker.
+          Use the &#8982; button next to a survey to reposition its marker.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>7. Collecting Surveys</h3>
+        <p class="hint">
+          Right-click a marker on the map to toggle it as collected, or click
+          <strong>Done</strong>
+          in the sidebar. Collected markers fade out and the
+          route path updates to show only the remaining stops.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>8. Motherlode Mode</h3>
+        <p class="hint">
+          Click <strong>Mode: Survey</strong> to switch to Motherlode mode.
+          When the game tells you a motherlode distance, click your position on the map
+          to record a reading. After 3 readings, the app triangulates the estimated location.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <h3>9. Lock Surveys</h3>
+        <p class="hint">
+          Click <strong>Lock Surveys</strong> to prevent accidental marker changes.
+          Click <strong>Unlock Surveys</strong> to allow edits again.
         </p>
       </div>
     <% end %>

@@ -50,6 +50,7 @@ const ScreenCapture = {
     this.settingZone = false;  // "map" or "inv" or false
     this.zoneCorner1 = null;
     this.invMarkers = []; // [{x_pct, y_pct, number}]
+    this.routeOrder = []; // cached route as array of survey IDs
 
     // Handle canvas clicks for survey placement and zone setting
     this.canvas.addEventListener("click", (e) => {
@@ -151,6 +152,7 @@ const ScreenCapture = {
     // Listen for state updates from server
     this.handleEvent("state_updated", (data) => {
       this.state = data;
+      this.updateRouteOrder();
       this.draw();
     });
 
@@ -229,6 +231,33 @@ const ScreenCapture = {
     this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
     this.draw();
+  },
+
+  updateRouteOrder() {
+    const surveys = this.state.surveys || [];
+
+    // Reset if surveys cleared or all IDs changed
+    if (surveys.length === 0) {
+      this.routeOrder = [];
+      return;
+    }
+
+    const currentIds = new Set(surveys.map(s => s.id));
+    const routeHasValidId = this.routeOrder.some(id => currentIds.has(id));
+    if (this.routeOrder.length > 0 && !routeHasValidId) {
+      // All IDs changed — new batch
+      this.routeOrder = [];
+    }
+
+    // Check for newly positioned uncollected surveys not in routeOrder
+    const positioned = surveys.filter(s => s.x_pct != null && !s.collected);
+    const routeSet = new Set(this.routeOrder);
+    const hasNew = positioned.some(s => !routeSet.has(s.id));
+
+    if (hasNew && positioned.length > 0) {
+      const route = optimizeRoute(positioned);
+      this.routeOrder = route.map(s => s.id);
+    }
   },
 
   // Compute where the video renders inside its container (object-fit: contain)
@@ -348,13 +377,17 @@ const ScreenCapture = {
     }
     ctx.globalAlpha = 1.0;
 
-    // Draw route path connecting uncollected markers in optimized order
-    const route = optimizeRoute(uncollected);
-    if (route.length > 1) {
+    // Draw route path using cached order, filtering out collected surveys
+    const surveyById = Object.fromEntries(allPlaced.map(s => [s.id, s]));
+    const routeSurveys = this.routeOrder
+      .filter(id => surveyById[id] && !surveyById[id].collected)
+      .map(id => surveyById[id]);
+
+    if (routeSurveys.length > 1) {
       ctx.beginPath();
-      ctx.moveTo((route[0].x_pct / 100) * W, (route[0].y_pct / 100) * H);
-      for (let i = 1; i < route.length; i++) {
-        ctx.lineTo((route[i].x_pct / 100) * W, (route[i].y_pct / 100) * H);
+      ctx.moveTo((routeSurveys[0].x_pct / 100) * W, (routeSurveys[0].y_pct / 100) * H);
+      for (let i = 1; i < routeSurveys.length; i++) {
+        ctx.lineTo((routeSurveys[i].x_pct / 100) * W, (routeSurveys[i].y_pct / 100) * H);
       }
       ctx.strokeStyle = "rgba(255,255,255,0.5)";
       ctx.lineWidth = 2;

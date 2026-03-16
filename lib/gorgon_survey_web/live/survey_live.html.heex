@@ -126,11 +126,35 @@
       <% end %>
     <% end %>
 
-    <%= if @sidebar_tab == "settings" do %>
-      <div class="settings-section">
-        <h3>Log Watcher</h3>
+    <%= if @log_watcher_mode != :local do %>
+      <div style={"display: #{if @sidebar_tab == "settings", do: "block", else: "none"}"}>
+        <div class="settings-section">
+          <h3>Log Watcher</h3>
+          <div
+            class="log-mode-toggle"
+            id="log-streamer"
+            phx-hook="LogStreamer"
+            phx-update="ignore"
+          >
+            <span class="log-mode-label">Stream from Browser</span>
+            <p class="hint">
+              Pick your chat.log file. New lines are streamed to the server automatically.
+              <br /><small>Chrome/Edge: auto-updates. Firefox: re-select file to refresh.</small>
+            </p>
+            <button data-pick-file class="detect-btn">Select Log File</button>
+            <button data-stop-stream class="detect-btn" style="display:none">
+              Stop Streaming
+            </button>
+            <span data-status class="log-stream-status"></span>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-        <%= if @log_watcher_mode == :local do %>
+    <%= if @sidebar_tab == "settings" do %>
+      <%= if @log_watcher_mode == :local do %>
+        <div class="settings-section">
+          <h3>Log Watcher</h3>
           <div class="log-mode-toggle">
             <span class="log-mode-label">Local File</span>
             <form phx-submit="set_log_folder">
@@ -151,26 +175,8 @@
               </div>
             <% end %>
           </div>
-        <% else %>
-          <div
-            class="log-mode-toggle"
-            id="log-streamer"
-            phx-hook="LogStreamer"
-            phx-update="ignore"
-          >
-            <span class="log-mode-label">Stream from Browser</span>
-            <p class="hint">
-              Pick your chat.log file. New lines are streamed to the server automatically.
-              <br /><small>Chrome/Edge: auto-updates. Firefox: re-select file to refresh.</small>
-            </p>
-            <button data-pick-file class="detect-btn">Select Log File</button>
-            <button data-stop-stream class="detect-btn" style="display:none">
-              Stop Streaming
-            </button>
-            <span data-status class="log-stream-status"></span>
-          </div>
-        <% end %>
-      </div>
+        </div>
+      <% end %>
 
       <div class="settings-section">
         <h3>Auto-Detect</h3>

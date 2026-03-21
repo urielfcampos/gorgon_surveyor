@@ -20,7 +20,21 @@ pub fn capture_and_detect(
     let pos = overlay.inner_position().map_err(|e| e.to_string())?;
     let size = overlay.inner_size().map_err(|e| e.to_string())?;
 
-    println!("[tauri] spectacle capture: fullscreen");
+    // Get monitor origin — spectacle -m captures relative to the monitor
+    let monitor = overlay.current_monitor().map_err(|e| e.to_string())?;
+    let (mon_x, mon_y) = match &monitor {
+        Some(m) => (m.position().x, m.position().y),
+        None => (0, 0),
+    };
+
+    // Overlay position relative to monitor (not desktop)
+    let rel_x = pos.x - mon_x;
+    let rel_y = pos.y - mon_y;
+
+    println!(
+        "[tauri] spectacle -m capture: overlay at {},{} (monitor-relative), size {}x{}",
+        rel_x, rel_y, size.width, size.height
+    );
 
     let screenshot_path = crate::portal::capture_screenshot()?;
 
@@ -36,10 +50,10 @@ pub fn capture_and_detect(
             .text("zone_y2", y2.to_string());
     }
 
-    // Pass overlay geometry so server can crop fullscreen to detect zone
+    // Pass overlay geometry relative to monitor origin
     form = form
-        .text("overlay_x", pos.x.to_string())
-        .text("overlay_y", pos.y.to_string())
+        .text("overlay_x", rel_x.to_string())
+        .text("overlay_y", rel_y.to_string())
         .text("overlay_w", size.width.to_string())
         .text("overlay_h", size.height.to_string());
 

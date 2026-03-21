@@ -7,7 +7,7 @@ pub fn capture_screenshot() -> Result<String, String> {
     let tmp_str = tmp.to_string_lossy().to_string();
 
     let output = Command::new("spectacle")
-        .args(["-f", "-b", "-n", "-o", &tmp_str])
+        .args(["-m", "-b", "-n", "-o", &tmp_str])
         .output()
         .map_err(|e| format!("Failed to run spectacle: {}", e))?;
 

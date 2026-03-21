@@ -9,6 +9,7 @@ defmodule GorgonSurveyWeb.OverlayLive do
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:#{session_id}")
     end
 
     app_state =
@@ -22,7 +23,7 @@ defmodule GorgonSurveyWeb.OverlayLive do
        session_id: session_id,
        app_state: app_state,
        placing_survey: nil
-     ), layout: false}
+     ), layout: {GorgonSurveyWeb.Layouts, :overlay_root}}
   end
 
   @impl true
@@ -33,6 +34,38 @@ defmodule GorgonSurveyWeb.OverlayLive do
       |> push_event("state_updated", serialize_state(socket, app_state))
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:start_set_zone, zone_type}, socket) do
+    {:noreply, push_event(socket, "start_set_zone", %{zone_type: zone_type})}
+  end
+
+  @impl true
+  def handle_event("set_detect_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
+    zone = %{x1: x1, y1: y1, x2: x2, y2: y2}
+
+    # Broadcast zone back to SurveyLive
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}:zones",
+      {:zone_set, :detect, zone}
+    )
+
+    {:noreply, push_event(socket, "zones_updated", %{detect_zone: zone, inv_zone: nil})}
+  end
+
+  @impl true
+  def handle_event("set_inv_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
+    zone = %{x1: x1, y1: y1, x2: x2, y2: y2}
+
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}:zones",
+      {:zone_set, :inv, zone}
+    )
+
+    {:noreply, push_event(socket, "zones_updated", %{detect_zone: nil, inv_zone: zone})}
   end
 
   @impl true

@@ -42,20 +42,14 @@ pub fn create_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
 
     let url = WebviewUrl::External("http://localhost:4840/overlay".parse().unwrap());
 
-    let overlay = WebviewWindowBuilder::new(&app, "overlay", url)
-        .title("Gorgon Survey Overlay")
+    let _overlay = WebviewWindowBuilder::new(&app, "overlay", url)
+        .title("Overlay — F12 to interact")
         .inner_size(800.0, 600.0)
         .transparent(true)
-        .decorations(false)
+        .decorations(true)
         .always_on_top(true)
         .build()
         .map_err(|e| format!("Failed to create overlay window: {}", e))?;
-
-    overlay
-        .set_ignore_cursor_events(true)
-        .map_err(|e| format!("Failed to set click-through: {}", e))?;
-
-    OVERLAY_CLICK_THROUGH.store(true, std::sync::atomic::Ordering::SeqCst);
 
     Ok(())
 }

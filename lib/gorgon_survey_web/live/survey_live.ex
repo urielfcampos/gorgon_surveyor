@@ -217,7 +217,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("start_set_zone", _params, socket) do
-    socket = push_event(socket, "start_set_zone", %{})
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}",
+      {:start_set_zone, "map"}
+    )
     {:noreply, socket}
   end
 
@@ -230,7 +234,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("start_set_inv_zone", _params, socket) do
-    socket = push_event(socket, "start_set_inv_zone", %{})
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}",
+      {:start_set_zone, "inv"}
+    )
     {:noreply, socket}
   end
 

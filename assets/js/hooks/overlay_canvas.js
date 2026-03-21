@@ -16,6 +16,8 @@ const OverlayCanvas = {
     this.invZone = null;
     this.invMarkers = [];
     this.routeOrder = [];
+    this.settingZone = false; // "map" or "inv" or false
+    this.zoneCorner1 = null;
 
     // Create fullscreen canvas
     this.canvas = document.createElement("canvas");
@@ -46,17 +48,47 @@ const OverlayCanvas = {
       this._draw();
     });
 
-    // Click to place survey
+    this.handleEvent("start_set_zone", (data) => {
+      this.settingZone = data.zone_type; // "map" or "inv"
+      this.zoneCorner1 = null;
+      this.canvas.style.cursor = "crosshair";
+    });
+
+    // Click handler: zone setting > survey placement > inventory marking
     this.canvas.addEventListener("click", (e) => {
-      if (!this.state || !this.state.placing_survey) return;
       const rect = this.canvas.getBoundingClientRect();
       const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
       const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
-      this.pushEvent("place_survey", {
-        id: this.state.placing_survey,
-        x_pct: x_pct,
-        y_pct: y_pct
-      });
+
+      // Zone setting mode
+      if (this.settingZone) {
+        if (!this.zoneCorner1) {
+          this.zoneCorner1 = { x: x_pct, y: y_pct };
+          return;
+        }
+        const zone = {
+          x1: Math.min(this.zoneCorner1.x, x_pct),
+          y1: Math.min(this.zoneCorner1.y, y_pct),
+          x2: Math.max(this.zoneCorner1.x, x_pct),
+          y2: Math.max(this.zoneCorner1.y, y_pct)
+        };
+        const eventName = this.settingZone === "map" ? "set_detect_zone" : "set_inv_zone";
+        this.pushEvent(eventName, zone);
+        this.settingZone = false;
+        this.zoneCorner1 = null;
+        this.canvas.style.cursor = "default";
+        return;
+      }
+
+      // Survey placement
+      if (this.state && this.state.placing_survey) {
+        this.pushEvent("place_survey", {
+          id: this.state.placing_survey,
+          x_pct: x_pct,
+          y_pct: y_pct
+        });
+        return;
+      }
     });
 
     // Right-click to toggle collected

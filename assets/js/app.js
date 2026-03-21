@@ -82,6 +82,33 @@ window.addEventListener("phx:trigger_capture", async (e) => {
   }
 })
 
+window.addEventListener("phx:set_collect_hotkey", async (e) => {
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core;
+      const key = e.detail && e.detail.key || "";
+      await invoke("set_collect_hotkey", { key });
+      console.log("[tauri] Collect hotkey set to:", key);
+    } catch (err) {
+      console.error("[tauri] Failed to set collect hotkey:", err);
+    }
+  }
+});
+
+// Force overlay window repaint — workaround for WebKitGTK transparent window bug (tauri#12800)
+window.addEventListener("phx:refresh_overlay", async () => {
+  console.log("[sidebar] phx:refresh_overlay event received, __TAURI__:", !!window.__TAURI__)
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      await invoke("refresh_overlay")
+      console.log("[sidebar] refresh_overlay invoke completed")
+    } catch (err) {
+      console.error("[sidebar] Failed to refresh overlay:", err)
+    }
+  }
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

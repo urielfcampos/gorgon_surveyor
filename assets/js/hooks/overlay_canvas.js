@@ -40,10 +40,24 @@ const OverlayCanvas = {
 
     this.handleEvent("zones_updated", (data) => {
       console.log("[overlay] zones_updated:", JSON.stringify(data));
+      const prevDetect = this.detectZone;
+      const prevInv = this.invZone;
       this.detectZone = data.detect_zone;
       this.invZone = data.inv_zone;
-      // Call _doDraw directly — rAF may not fire on click-through windows
       this._doDraw();
+
+      // WebKitGTK transparent windows don't
+      // repaint after content is removed (upstream bug).
+      // Force compositor invalidation by briefly hiding the canvas.
+      const zoneCleared = (prevDetect && !this.detectZone) || (prevInv && !this.invZone);
+      if (zoneCleared) {
+        this.canvas.style.display = "none";
+        void this.canvas.offsetHeight;
+        requestAnimationFrame(() => {
+          this.canvas.style.display = "block";
+          this._doDraw();
+        });
+      }
     });
 
     this.handleEvent("inv_markers", (data) => {
@@ -62,6 +76,28 @@ const OverlayCanvas = {
       this.zoneCorner1 = null;
       this.canvas.style.cursor = "crosshair";
     });
+
+    // Listen for collect hotkey from Tauri
+    if (window.__TAURI__) {
+      this._collectUnlisten = window.__TAURI__.event.listen("collect_at_cursor", (e) => {
+        if (!this.state) return;
+        const { x_pct, y_pct } = e.payload;
+
+        const placed = this.state.surveys.filter((s) => s.x_pct != null && !s.collected);
+        let closest = null;
+        let closestDist = Infinity;
+        for (const s of placed) {
+          const d = Math.hypot(s.x_pct - x_pct, s.y_pct - y_pct);
+          if (d < closestDist) {
+            closestDist = d;
+            closest = s;
+          }
+        }
+        if (closest && closestDist < 3) {
+          this.pushEvent("toggle_collected", { id: closest.id });
+        }
+      });
+    }
 
     // Click handler: zone setting > survey placement > inventory marking
     this.canvas.addEventListener("click", (e) => {
@@ -100,33 +136,36 @@ const OverlayCanvas = {
       }
     });
 
+    // Track cursor position for global hotkey collection
+    this._cursorPct = { x: 0, y: 0 };
+    window.addEventListener("mousemove", (e) => {
+      this._cursorPct = {
+        x: (e.clientX / window.innerWidth) * 100,
+        y: (e.clientY / window.innerHeight) * 100
+      };
+    });
+
     // Right-click to toggle collected
     this.canvas.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (!this.state) return;
       const rect = this.canvas.getBoundingClientRect();
       const x_pct = ((e.clientX - rect.left) / rect.width) * 100;
       const y_pct = ((e.clientY - rect.top) / rect.height) * 100;
-
-      const placed = this.state.surveys.filter((s) => s.x_pct != null);
-      let closest = null;
-      let closestDist = Infinity;
-      for (const s of placed) {
-        const d = Math.hypot(s.x_pct - x_pct, s.y_pct - y_pct);
-        if (d < closestDist) {
-          closestDist = d;
-          closest = s;
-        }
-      }
-      // Only toggle if within reasonable distance (3% of canvas)
-      if (closest && closestDist < 3) {
-        this.pushEvent("toggle_collected", { id: closest.id });
-      }
+      this._toggleClosestSurvey(x_pct, y_pct);
     });
+
+    // Expose for Tauri hotkey via eval
+    const hook = this;
+    window._collectNearest = () => {
+      hook._markInvAtCursor(hook._cursorPct.x, hook._cursorPct.y);
+    };
   },
 
   destroyed() {
     window.removeEventListener("resize", this._resizeHandler);
+    if (this._collectUnlisten) {
+      this._collectUnlisten.then(fn => fn());
+    }
   },
 
   _resize() {
@@ -144,6 +183,27 @@ const OverlayCanvas = {
     this.routeOrder = optimized.map((s) => s.id);
   },
 
+  _markInvAtCursor(x_pct, y_pct) {
+    this.pushEvent("mark_inv_item", { x_pct: x_pct, y_pct: y_pct });
+  },
+
+  _toggleClosestSurvey(x_pct, y_pct) {
+    if (!this.state) return;
+    const placed = this.state.surveys.filter((s) => s.x_pct != null);
+    let closest = null;
+    let closestDist = Infinity;
+    for (const s of placed) {
+      const d = Math.hypot(s.x_pct - x_pct, s.y_pct - y_pct);
+      if (d < closestDist) {
+        closestDist = d;
+        closest = s;
+      }
+    }
+    if (closest && closestDist < 3) {
+      this.pushEvent("toggle_collected", { id: closest.id });
+    }
+  },
+
   _draw() {
     this._doDraw();
   },
@@ -151,11 +211,16 @@ const OverlayCanvas = {
   _doDraw() {
     const W = this.canvas.width;
     const H = this.canvas.height;
+    const ctx = this.ctx;
 
-    // Force full buffer reset — clearRect doesn't clear to transparent
-    // on WebKitGTK transparent windows
-    this.canvas.width = W;
-    const ctx = this.canvas.getContext("2d");
+    // Clear to fully transparent using composite "copy" —
+    // replaces all pixels including alpha, which triggers
+    // WebKitGTK's damage tracking more reliably than buffer reset
+    ctx.save();
+    ctx.globalCompositeOperation = "copy";
+    ctx.fillStyle = "rgba(0,0,0,0)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
 
     // Draw zones even if state hasn't arrived yet
     if (this.detectZone) {

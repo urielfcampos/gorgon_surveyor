@@ -179,15 +179,30 @@
 
       <div class="settings-section">
         <h3>Overlay</h3>
-        <p class="hint">
-          Hotkey: <kbd>F12</kbd> to toggle interaction mode
-        </p>
         <%= if @overlay_active do %>
           <span class="watcher-dot"></span> Overlay active
         <% else %>
           <span>No game window selected</span>
         <% end %>
       </div>
+
+      <div class="settings-section">
+        <h3>Collect Hotkey</h3>
+        <form phx-submit="set_collect_hotkey">
+          <input
+            type="text"
+            name="key"
+            value={@collect_hotkey}
+            placeholder="e.g. F11"
+          />
+          <button type="submit">Set</button>
+        </form>
+        <p class="hint">
+          Global hotkey to mark the survey under cursor as collected.
+          Examples: F11, F10, F9
+        </p>
+      </div>
+
 
       <div class="settings-section">
         <h3>Auto-Detect</h3>

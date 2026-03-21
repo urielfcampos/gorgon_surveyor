@@ -12,6 +12,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
       GorgonSurvey.SessionManager.register(session_id)
       Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
       Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:#{session_id}:zones")
+      send(self(), :register_collect_hotkey)
     end
 
     log_folder = ConfigStore.get_for_session(session_id, "log_folder", "")
@@ -33,7 +34,8 @@ defmodule GorgonSurveyWeb.SurveyLive do
        auto_detect_on_survey:
          ConfigStore.get_for_session(session_id, "auto_detect_on_survey", "false") == "true",
        sidebar_tab: "surveys",
-       mode: :survey
+       mode: :survey,
+       collect_hotkey: ConfigStore.get("collect_hotkey", "")
      )}
   end
 
@@ -122,6 +124,29 @@ defmodule GorgonSurveyWeb.SurveyLive do
   @impl true
   def handle_info({:zone_set, :inv, zone}, socket) do
     {:noreply, assign(socket, inv_zone: zone)}
+  end
+
+  @impl true
+  def handle_info(:register_collect_hotkey, socket) do
+    key = socket.assigns.collect_hotkey
+
+    if key != "" do
+      {:noreply, push_event(socket, "set_collect_hotkey", %{key: key})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("set_collect_hotkey", %{"key" => key}, socket) do
+    ConfigStore.put("collect_hotkey", key)
+
+    socket =
+      socket
+      |> assign(collect_hotkey: key)
+      |> push_event("set_collect_hotkey", %{key: key})
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -254,7 +279,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
       {:zone_set, :detect, nil}
     )
 
-    socket = assign(socket, detect_zone: nil)
+    socket =
+      socket
+      |> assign(detect_zone: nil)
+      |> push_event("refresh_overlay", %{})
+
     {:noreply, socket}
   end
 
@@ -291,7 +320,11 @@ defmodule GorgonSurveyWeb.SurveyLive do
       {:zone_set, :inv, nil}
     )
 
-    socket = assign(socket, inv_zone: nil, inv_markers: [])
+    socket =
+      socket
+      |> assign(inv_zone: nil, inv_markers: [])
+      |> push_event("refresh_overlay", %{})
+
     {:noreply, socket}
   end
 

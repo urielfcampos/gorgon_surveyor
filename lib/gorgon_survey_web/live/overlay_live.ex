@@ -149,6 +149,22 @@ defmodule GorgonSurveyWeb.OverlayLive do
   end
 
   @impl true
+  def handle_event("place_and_collect", %{"id" => id, "x_pct" => x, "y_pct" => y}, socket) do
+    id = if is_binary(id), do: String.to_integer(id), else: id
+
+    case GorgonSurvey.SessionManager.get_watcher(socket.assigns.session_id) do
+      {:ok, pid} ->
+        LogWatcher.place_survey(pid, id, x, y)
+        LogWatcher.toggle_collected(pid, id)
+
+      _ ->
+        :ok
+    end
+
+    {:noreply, assign(socket, placing_survey: nil)}
+  end
+
+  @impl true
   def handle_event("toggle_collected", %{"id" => id}, socket) do
     id = if is_binary(id), do: String.to_integer(id), else: id
 

@@ -43,15 +43,16 @@ window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // Handle Tauri commands from LiveView events
-window.addEventListener("phx:select_game_window", async () => {
+window.addEventListener("phx:select_game_window", async (e) => {
+  const sessionId = e.detail && e.detail.session_id || "default"
   if (window.__TAURI__) {
     try {
       const { invoke } = window.__TAURI__.core
-      await invoke("create_overlay_window")
-      console.log("[tauri] Overlay window created")
-    } catch (e) {
-      console.error("[tauri] Failed to create overlay:", e)
-      alert("Failed to create overlay window: " + e)
+      await invoke("create_overlay_window", { sessionId })
+      console.log("[tauri] Overlay window created for session:", sessionId)
+    } catch (err) {
+      console.error("[tauri] Failed to create overlay:", err)
+      alert("Failed to create overlay window: " + err)
     }
   } else {
     console.warn("Not running inside Tauri — overlay not available")

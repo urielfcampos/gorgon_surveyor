@@ -182,7 +182,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("select_game_window", _params, socket) do
-    {:noreply, push_event(socket, "select_game_window", %{})}
+    {:noreply, push_event(socket, "select_game_window", %{session_id: socket.assigns.session_id})}
   end
 
   @impl true

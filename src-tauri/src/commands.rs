@@ -33,14 +33,15 @@ pub async fn capture_and_detect(session_id: String) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub fn create_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
+pub fn create_overlay_window(app: tauri::AppHandle, session_id: String) -> Result<(), String> {
     // If overlay already exists, just show it
     if let Some(overlay) = app.get_webview_window("overlay") {
         overlay.show().map_err(|e| e.to_string())?;
         return Ok(());
     }
 
-    let url = WebviewUrl::External("http://localhost:4840/overlay".parse().unwrap());
+    let url_str = format!("http://localhost:4840/overlay?session_id={}", session_id);
+    let url = WebviewUrl::External(url_str.parse().unwrap());
 
     let _overlay = WebviewWindowBuilder::new(&app, "overlay", url)
         .title("Overlay — F12 to interact")

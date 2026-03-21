@@ -1,15 +1,11 @@
 <div class="panel-layout">
-  <div class="panel-header">
-    <h1 class="panel-title">Gorgon Survey</h1>
-    <%= unless @overlay_active do %>
-      <button phx-click="select_game_window" class="select-window-btn">Select Game Window</button>
-    <% else %>
-      <span class="overlay-status"><span class="watcher-dot"></span> Overlay Active</span>
-    <% end %>
-  </div>
-
   <aside class="sidebar">
     <div class="tab-bar">
+      <%= unless @overlay_active do %>
+        <button phx-click="select_game_window" class="tab-btn select-window-btn">Select Window</button>
+      <% else %>
+        <span class="tab-btn overlay-active-badge">Overlay On</span>
+      <% end %>
       <button
         phx-click="switch_tab"
         phx-value-tab="surveys"

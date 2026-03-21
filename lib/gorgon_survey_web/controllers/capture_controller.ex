@@ -6,6 +6,7 @@ defmodule GorgonSurveyWeb.CaptureController do
   require Logger
 
   def create(conn, %{"session_id" => session_id} = params) do
+    Logger.info("capture params: #{inspect(Map.keys(params))}")
     watcher = {:via, Registry, {GorgonSurvey.SessionRegistry, {:session, session_id}}}
 
     png_binary =

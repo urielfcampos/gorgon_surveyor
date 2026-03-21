@@ -11,6 +11,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
     if connected?(socket) do
       GorgonSurvey.SessionManager.register(session_id)
       Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:#{session_id}:zones")
     end
 
     log_folder = ConfigStore.get_for_session(session_id, "log_folder", "")
@@ -110,6 +111,17 @@ defmodule GorgonSurveyWeb.SurveyLive do
       |> push_event("inv_markers", %{markers: inv_markers})
 
     {:noreply, socket}
+  end
+
+  # Receive zone updates from OverlayLive
+  @impl true
+  def handle_info({:zone_set, :detect, zone}, socket) do
+    {:noreply, assign(socket, detect_zone: zone)}
+  end
+
+  @impl true
+  def handle_info({:zone_set, :inv, zone}, socket) do
+    {:noreply, assign(socket, inv_zone: zone)}
   end
 
   @impl true

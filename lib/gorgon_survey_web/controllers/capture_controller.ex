@@ -67,8 +67,10 @@ defmodule GorgonSurveyWeb.CaptureController do
   defp parse_zone(_), do: nil
 
   defp parse_overlay_geometry(%{
-         "overlay_x" => x, "overlay_y" => y,
-         "overlay_w" => w, "overlay_h" => h
+         "overlay_x" => x,
+         "overlay_y" => y,
+         "overlay_w" => w,
+         "overlay_h" => h
        }) do
     %{x: to_float(x), y: to_float(y), w: to_float(w), h: to_float(h)}
   end

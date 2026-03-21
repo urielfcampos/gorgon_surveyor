@@ -2,7 +2,9 @@
   <aside class="sidebar">
     <div class="tab-bar">
       <%= unless @overlay_active do %>
-        <button phx-click="select_game_window" class="tab-btn select-window-btn">Select Window</button>
+        <button phx-click="select_game_window" class="tab-btn select-window-btn">
+          Select Window
+        </button>
       <% else %>
         <span class="tab-btn overlay-active-badge">Overlay On</span>
       <% end %>
@@ -203,7 +205,6 @@
         </p>
       </div>
 
-
       <div class="settings-section">
         <h3>Auto-Detect</h3>
         <button
@@ -235,7 +236,8 @@
           Click the <strong>Select Game Window</strong>
           button to choose your Project Gorgon game window.
           An overlay will appear on top of the game for placing markers.
-          Press <kbd>F12</kbd> to toggle interaction mode (click-through vs interactive).
+          Press <kbd>F12</kbd>
+          to toggle interaction mode (click-through vs interactive).
         </p>
       </div>
 
@@ -314,6 +316,5 @@
         </p>
       </div>
     <% end %>
-
   </aside>
 </div>

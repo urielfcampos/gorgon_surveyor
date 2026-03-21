@@ -262,6 +262,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
       "overlay:#{socket.assigns.session_id}",
       {:start_set_zone, "map"}
     )
+
     {:noreply, socket}
   end
 
@@ -294,6 +295,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
       "overlay:#{socket.assigns.session_id}",
       {:start_set_zone, "inv"}
     )
+
     {:noreply, socket}
   end
 

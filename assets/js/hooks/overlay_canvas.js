@@ -39,9 +39,11 @@ const OverlayCanvas = {
     });
 
     this.handleEvent("zones_updated", (data) => {
+      console.log("[overlay] zones_updated:", JSON.stringify(data));
       this.detectZone = data.detect_zone;
       this.invZone = data.inv_zone;
-      this._draw();
+      // Call _doDraw directly — rAF may not fire on click-through windows
+      this._doDraw();
     });
 
     this.handleEvent("inv_markers", (data) => {
@@ -143,9 +145,7 @@ const OverlayCanvas = {
   },
 
   _draw() {
-    // Use requestAnimationFrame to ensure WebKitGTK repaints transparent canvas
-    cancelAnimationFrame(this._rafId);
-    this._rafId = requestAnimationFrame(() => this._doDraw());
+    this._doDraw();
   },
 
   _doDraw() {

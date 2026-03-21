@@ -149,11 +149,13 @@ const OverlayCanvas = {
   },
 
   _doDraw() {
-    const ctx = this.ctx;
     const W = this.canvas.width;
     const H = this.canvas.height;
 
-    ctx.clearRect(0, 0, W, H);
+    // Force full buffer reset — clearRect doesn't clear to transparent
+    // on WebKitGTK transparent windows
+    this.canvas.width = W;
+    const ctx = this.canvas.getContext("2d");
 
     // Draw zones even if state hasn't arrived yet
     if (this.detectZone) {

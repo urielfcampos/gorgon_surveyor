@@ -22,7 +22,9 @@ defmodule GorgonSurveyWeb.OverlayLive do
      assign(socket,
        session_id: session_id,
        app_state: app_state,
-       placing_survey: nil
+       placing_survey: nil,
+       detect_zone: nil,
+       inv_zone: nil
      ), layout: {GorgonSurveyWeb.Layouts, :overlay_root}}
   end
 
@@ -45,19 +47,29 @@ defmodule GorgonSurveyWeb.OverlayLive do
   def handle_event("set_detect_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
     zone = %{x1: x1, y1: y1, x2: x2, y2: y2}
 
-    # Broadcast zone back to SurveyLive
+    socket =
+      socket
+      |> assign(detect_zone: zone)
+      |> push_event("zones_updated", %{detect_zone: zone, inv_zone: socket.assigns[:inv_zone]})
+
+    # Broadcast zone to SurveyLive so sidebar reflects it
     Phoenix.PubSub.broadcast(
       GorgonSurvey.PubSub,
       "overlay:#{socket.assigns.session_id}:zones",
       {:zone_set, :detect, zone}
     )
 
-    {:noreply, push_event(socket, "zones_updated", %{detect_zone: zone, inv_zone: nil})}
+    {:noreply, socket}
   end
 
   @impl true
   def handle_event("set_inv_zone", %{"x1" => x1, "y1" => y1, "x2" => x2, "y2" => y2}, socket) do
     zone = %{x1: x1, y1: y1, x2: x2, y2: y2}
+
+    socket =
+      socket
+      |> assign(inv_zone: zone)
+      |> push_event("zones_updated", %{detect_zone: socket.assigns[:detect_zone], inv_zone: zone})
 
     Phoenix.PubSub.broadcast(
       GorgonSurvey.PubSub,
@@ -65,7 +77,7 @@ defmodule GorgonSurveyWeb.OverlayLive do
       {:zone_set, :inv, zone}
     )
 
-    {:noreply, push_event(socket, "zones_updated", %{detect_zone: nil, inv_zone: zone})}
+    {:noreply, socket}
   end
 
   @impl true

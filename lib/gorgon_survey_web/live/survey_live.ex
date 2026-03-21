@@ -230,8 +230,13 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("clear_detect_zone", _params, socket) do
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}",
+      {:clear_zone, :detect}
+    )
+
     socket = assign(socket, detect_zone: nil)
-    socket = push_event(socket, "clear_detect_zone", %{})
     {:noreply, socket}
   end
 
@@ -256,11 +261,13 @@ defmodule GorgonSurveyWeb.SurveyLive do
 
   @impl true
   def handle_event("clear_inv_zone", _params, socket) do
-    socket =
-      socket
-      |> assign(inv_zone: nil, inv_markers: [])
-      |> push_event("clear_inv_zone", %{})
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}",
+      {:clear_zone, :inv}
+    )
 
+    socket = assign(socket, inv_zone: nil, inv_markers: [])
     {:noreply, socket}
   end
 

@@ -45,6 +45,26 @@ defmodule GorgonSurveyWeb.OverlayLive do
   end
 
   @impl true
+  def handle_info({:clear_zone, :detect}, socket) do
+    socket =
+      socket
+      |> assign(detect_zone: nil)
+      |> push_event("zones_updated", %{detect_zone: nil, inv_zone: socket.assigns.inv_zone})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:clear_zone, :inv}, socket) do
+    socket =
+      socket
+      |> assign(inv_zone: nil)
+      |> push_event("zones_updated", %{detect_zone: socket.assigns.detect_zone, inv_zone: nil})
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("toggle_interact", _params, socket) do
     interactive = !socket.assigns.interactive
 

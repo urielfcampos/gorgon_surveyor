@@ -17,11 +17,13 @@ pub fn capture_and_detect(
         .get_webview_window("overlay")
         .ok_or_else(|| "Overlay window not found".to_string())?;
 
+    let pos = overlay.inner_position().map_err(|e| e.to_string())?;
+    let size = overlay.inner_size().map_err(|e| e.to_string())?;
+
     // Hide overlay so it doesn't appear in the screenshot
     let _ = overlay.hide();
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    // Capture the current monitor (game should be visible now)
     let capture_result = crate::portal::capture_screenshot();
 
     // Show overlay again immediately
@@ -29,14 +31,11 @@ pub fn capture_and_detect(
 
     let screenshot_path = capture_result?;
 
-    println!("[tauri] captured screenshot: {}", screenshot_path);
+    println!(
+        "[tauri] captured: overlay inner pos {},{} size {}x{}",
+        pos.x, pos.y, size.width, size.height
+    );
 
-    // The screenshot is the full monitor. The detect zone percentages
-    // are relative to the overlay window, which covers the game.
-    // Since we can't get overlay position on Wayland, we send the
-    // zone as pixel coordinates that the server will use to crop.
-    // For now, just send the zone percentages and let the server
-    // treat them as percentages of the full screenshot.
     let client = reqwest::blocking::Client::new();
     let mut form = reqwest::blocking::multipart::Form::new()
         .text("path", screenshot_path);
@@ -48,6 +47,13 @@ pub fn capture_and_detect(
             .text("zone_x2", x2.to_string())
             .text("zone_y2", y2.to_string());
     }
+
+    // Pass overlay geometry so server can crop correctly
+    form = form
+        .text("overlay_x", pos.x.to_string())
+        .text("overlay_y", pos.y.to_string())
+        .text("overlay_w", size.width.to_string())
+        .text("overlay_h", size.height.to_string());
 
     let response = client
         .post(format!("http://localhost:4840/api/capture/{}", session_id))

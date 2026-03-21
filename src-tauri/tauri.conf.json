@@ -6,6 +6,7 @@
     "frontendDist": "../priv/static"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Gorgon Survey",

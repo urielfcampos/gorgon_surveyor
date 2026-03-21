@@ -88,6 +88,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::capture_screenshot,
             commands::capture_and_detect,
+            commands::create_overlay_window,
             commands::toggle_overlay_interaction,
             commands::set_overlay_geometry,
         ])
@@ -117,11 +118,6 @@ pub fn run() {
                     println!("[tauri] Phoenix server is ready!");
                     let url = format!("http://localhost:{}", SERVER_PORT);
                     let _ = window.navigate(url.parse().unwrap());
-
-                    // Set overlay to click-through by default
-                    if let Some(overlay) = app_handle.get_webview_window("overlay") {
-                        let _ = overlay.set_ignore_cursor_events(true);
-                    }
 
                     // Register global hotkey
                     if let Err(e) = hotkey::register_default_hotkey(&app_handle) {

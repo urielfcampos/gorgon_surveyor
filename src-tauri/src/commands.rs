@@ -1,4 +1,6 @@
 use tauri::Manager;
+use tauri::WebviewUrl;
+use tauri::webview::WebviewWindowBuilder;
 
 use crate::OVERLAY_CLICK_THROUGH;
 
@@ -28,6 +30,34 @@ pub async fn capture_and_detect(session_id: String) -> Result<serde_json::Value,
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     Ok(body)
+}
+
+#[tauri::command]
+pub fn create_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
+    // If overlay already exists, just show it
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay.show().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    let url = WebviewUrl::External("http://localhost:4840/overlay".parse().unwrap());
+
+    let overlay = WebviewWindowBuilder::new(&app, "overlay", url)
+        .title("Gorgon Survey Overlay")
+        .inner_size(800.0, 600.0)
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .build()
+        .map_err(|e| format!("Failed to create overlay window: {}", e))?;
+
+    overlay
+        .set_ignore_cursor_events(true)
+        .map_err(|e| format!("Failed to set click-through: {}", e))?;
+
+    OVERLAY_CLICK_THROUGH.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    Ok(())
 }
 
 #[tauri::command]

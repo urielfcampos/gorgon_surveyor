@@ -14,18 +14,6 @@
         "height": 800,
         "resizable": true,
         "fullscreen": false
-      },
-      {
-        "label": "overlay",
-        "title": "Gorgon Survey Overlay",
-        "url": "http://localhost:4840/overlay",
-        "width": 800,
-        "height": 600,
-        "resizable": true,
-        "transparent": true,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "visible": false
       }
     ]
   },

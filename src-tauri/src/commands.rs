@@ -20,20 +20,28 @@ pub fn capture_and_detect(
     let pos = overlay.inner_position().map_err(|e| e.to_string())?;
     let size = overlay.inner_size().map_err(|e| e.to_string())?;
 
-    // Get monitor origin — spectacle -m captures relative to the monitor
-    let monitor = overlay.current_monitor().map_err(|e| e.to_string())?;
-    let (mon_x, mon_y) = match &monitor {
-        Some(m) => (m.position().x, m.position().y),
-        None => (0, 0),
-    };
+    // Find the monitor that actually contains the overlay window
+    let monitors = overlay.available_monitors().map_err(|e| e.to_string())?;
+    let (mon_x, mon_y) = monitors
+        .iter()
+        .find(|m| {
+            let mp = m.position();
+            let ms = m.size();
+            pos.x >= mp.x
+                && pos.x < mp.x + ms.width as i32
+                && pos.y >= mp.y
+                && pos.y < mp.y + ms.height as i32
+        })
+        .map(|m| (m.position().x, m.position().y))
+        .unwrap_or((0, 0));
 
-    // Overlay position relative to monitor (not desktop)
+    // Overlay position relative to its monitor
     let rel_x = pos.x - mon_x;
     let rel_y = pos.y - mon_y;
 
     println!(
-        "[tauri] spectacle -m capture: overlay at {},{} (monitor-relative), size {}x{}",
-        rel_x, rel_y, size.width, size.height
+        "[tauri] spectacle -m capture: overlay at {},{} (monitor-relative, monitor origin {},{}), size {}x{}",
+        rel_x, rel_y, mon_x, mon_y, size.width, size.height
     );
 
     let screenshot_path = crate::portal::capture_screenshot()?;

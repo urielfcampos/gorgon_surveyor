@@ -86,7 +86,10 @@ defmodule GorgonSurveyWeb.SurveyLive do
     # Trigger a single scan to place the new survey's marker
     socket =
       if has_new_survey && socket.assigns.auto_detect_on_survey do
-        push_event(socket, "trigger_capture", %{session_id: socket.assigns.session_id})
+        push_event(socket, "trigger_capture", %{
+          session_id: socket.assigns.session_id,
+          detect_zone: socket.assigns.detect_zone
+        })
       else
         socket
       end

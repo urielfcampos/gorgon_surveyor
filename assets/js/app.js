@@ -63,11 +63,21 @@ window.addEventListener("phx:trigger_capture", async (e) => {
   if (window.__TAURI__) {
     try {
       const { invoke } = window.__TAURI__.core
-      const sessionId = e.detail.session_id || "default"
-      const result = await invoke("capture_and_detect", { sessionId })
+      const detail = e.detail || {}
+      const params = { sessionId: detail.session_id || "default" }
+
+      // Pass detect zone if available
+      if (detail.detect_zone) {
+        params.zoneX1 = detail.detect_zone.x1
+        params.zoneY1 = detail.detect_zone.y1
+        params.zoneX2 = detail.detect_zone.x2
+        params.zoneY2 = detail.detect_zone.y2
+      }
+
+      const result = await invoke("capture_and_detect", params)
       console.log("[tauri] Capture result:", result)
-    } catch (e) {
-      console.error("[tauri] Capture failed:", e)
+    } catch (err) {
+      console.error("[tauri] Capture failed:", err)
     }
   }
 })

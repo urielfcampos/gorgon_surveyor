@@ -10,12 +10,27 @@ pub async fn capture_screenshot() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn capture_and_detect(session_id: String) -> Result<serde_json::Value, String> {
+pub async fn capture_and_detect(
+    session_id: String,
+    zone_x1: Option<f64>,
+    zone_y1: Option<f64>,
+    zone_x2: Option<f64>,
+    zone_y2: Option<f64>,
+) -> Result<serde_json::Value, String> {
     let screenshot_path = crate::portal::capture_screenshot().await?;
 
     let client = reqwest::Client::new();
-    let form = reqwest::multipart::Form::new()
+    let mut form = reqwest::multipart::Form::new()
         .text("path", screenshot_path);
+
+    // Pass detect zone coordinates so the server can map detected positions
+    if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (zone_x1, zone_y1, zone_x2, zone_y2) {
+        form = form
+            .text("zone_x1", x1.to_string())
+            .text("zone_y1", y1.to_string())
+            .text("zone_x2", x2.to_string())
+            .text("zone_y2", y2.to_string());
+    }
 
     let response = client
         .post(format!("http://localhost:4840/api/capture/{}", session_id))

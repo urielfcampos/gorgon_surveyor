@@ -1,10 +1,12 @@
-<div class="app-layout">
-  <main class="main-area">
-    <div id="screen-capture" phx-hook="ScreenCapture" phx-update="ignore"></div>
+<div class="panel-layout">
+  <div class="panel-header">
+    <h1 class="panel-title">Gorgon Survey</h1>
     <%= unless @overlay_active do %>
-      <button phx-click="select_game_window" class="share-btn">Select Game Window</button>
+      <button phx-click="select_game_window" class="select-window-btn">Select Game Window</button>
+    <% else %>
+      <span class="overlay-status"><span class="watcher-dot"></span> Overlay Active</span>
     <% end %>
-  </main>
+  </div>
 
   <aside class="sidebar">
     <div class="tab-bar">

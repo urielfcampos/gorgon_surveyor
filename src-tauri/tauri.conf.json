@@ -10,8 +10,8 @@
       {
         "title": "Gorgon Survey",
         "url": "http://localhost:4840",
-        "width": 1280,
-        "height": 800,
+        "width": 380,
+        "height": 700,
         "resizable": true,
         "fullscreen": false
       }

@@ -107,44 +107,49 @@
 
 /* This file is for your main application CSS */
 
-.app-layout {
+.panel-layout {
     display: flex;
+    flex-direction: column;
     height: 100vh;
     overflow: hidden;
     background: #1a1a2e;
     color: #eee;
 }
 
-.main-area {
-    flex: 1;
-    position: relative;
+.panel-header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: #000;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #16162a;
+    border-bottom: 1px solid #2a2a4a;
 }
 
-#screen-capture {
-    width: 100%;
-    height: 100%;
-    position: relative;
+.panel-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
 }
 
-.share-btn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    padding: 16px 32px;
-    font-size: 18px;
+.overlay-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #8f8;
+}
+
+.select-window-btn {
+    padding: 8px 16px;
+    font-size: 14px;
     background: #3a86ff;
     color: #fff;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
 }
 
-.share-btn:hover {
+.select-window-btn:hover {
     background: #2a76ef;
 }
 
@@ -179,11 +184,10 @@
 }
 
 .sidebar {
-    width: 280px;
+    flex: 1;
     padding: 16px;
     background: #16213e;
     overflow-y: auto;
-    border-left: 1px solid #333;
 }
 
 .sidebar h2 {

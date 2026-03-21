@@ -25,9 +25,10 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/gorgon_survey"
 import ScreenCapture from "./hooks/screen_capture"
 import LogStreamer from "./hooks/log_streamer"
+import OverlayCanvas from "./hooks/overlay_canvas"
 import topbar from "../vendor/topbar"
 
-const Hooks = { ...colocatedHooks, ScreenCapture, LogStreamer }
+const Hooks = { ...colocatedHooks, ScreenCapture, LogStreamer, OverlayCanvas }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {

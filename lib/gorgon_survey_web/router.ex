@@ -18,6 +18,7 @@ defmodule GorgonSurveyWeb.Router do
     pipe_through :browser
 
     live "/", SurveyLive
+    live "/overlay", OverlayLive
   end
 
   # Other scopes may use custom stacks.

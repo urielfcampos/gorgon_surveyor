@@ -1,8 +1,66 @@
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri::webview::WebviewWindowBuilder;
 
 use crate::OVERLAY_CLICK_THROUGH;
+
+fn get_cursor_position() -> Result<(i32, i32), String> {
+    let output = std::process::Command::new("xdotool")
+        .args(["getmouselocation", "--shell"])
+        .output()
+        .map_err(|e| format!("Failed to run xdotool: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut x: Option<i32> = None;
+    let mut y: Option<i32> = None;
+
+    for line in stdout.lines() {
+        if let Some(val) = line.strip_prefix("X=") {
+            x = val.parse().ok();
+        } else if let Some(val) = line.strip_prefix("Y=") {
+            y = val.parse().ok();
+        }
+    }
+
+    match (x, y) {
+        (Some(x), Some(y)) => Ok((x, y)),
+        _ => Err("Failed to parse cursor position from xdotool".to_string()),
+    }
+}
+
+pub fn emit_collect_at_cursor(app: &tauri::AppHandle) -> Result<(), String> {
+    let overlay = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
+
+    let (cursor_x, cursor_y) = get_cursor_position()?;
+
+    let pos = overlay.inner_position().map_err(|e| e.to_string())?;
+    let size = overlay.inner_size().map_err(|e| e.to_string())?;
+
+    let rel_x = cursor_x - pos.x;
+    let rel_y = cursor_y - pos.y;
+
+    // Silently ignore if cursor is outside overlay bounds
+    if rel_x < 0 || rel_y < 0 || rel_x >= size.width as i32 || rel_y >= size.height as i32 {
+        return Ok(());
+    }
+
+    let x_pct = rel_x as f64 / size.width as f64 * 100.0;
+    let y_pct = rel_y as f64 / size.height as f64 * 100.0;
+
+    overlay
+        .emit("collect_at_cursor", serde_json::json!({"x_pct": x_pct, "y_pct": y_pct}))
+        .map_err(|e| format!("Failed to emit collect_at_cursor: {}", e))?;
+
+    println!(
+        "[tauri] collect_at_cursor: cursor=({},{}) overlay_pos=({},{}) pct=({:.1},{:.1})",
+        cursor_x, cursor_y, pos.x, pos.y, x_pct, y_pct
+    );
+
+    Ok(())
+}
 
 #[tauri::command]
 pub fn capture_and_detect(
@@ -125,6 +183,46 @@ pub fn toggle_overlay_interaction(app: tauri::AppHandle) -> Result<bool, String>
 }
 
 #[tauri::command]
+pub fn refresh_overlay(app: tauri::AppHandle) -> Result<(), String> {
+    let _overlay = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
+
+    println!("[tauri] refresh_overlay called");
+
+    // Force WebKitGTK to recomposite by hiding and re-showing
+    // the overlay window with a delay long enough for the
+    // compositor to process the unmap/map cycle.
+    // Save position and size before hiding
+    let pos = _overlay.outer_position().map_err(|e| e.to_string())?;
+    let size = _overlay.outer_size().map_err(|e| e.to_string())?;
+    println!("[tauri] refresh_overlay saving pos=({},{}) size={}x{}", pos.x, pos.y, size.width, size.height);
+
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if let Some(win) = handle.get_webview_window("overlay") {
+            // Wait for the overlay LiveView to receive the zone clear
+            // via PubSub and redraw the canvas before we hide/show
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = win.hide();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let _ = win.set_position(tauri::Position::Physical(pos));
+            let _ = win.set_size(tauri::Size::Physical(size));
+            let _ = win.show();
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let _ = win.set_position(tauri::Position::Physical(pos));
+            let _ = win.set_size(tauri::Size::Physical(size));
+            let _ = win.set_always_on_top(true);
+            let ct = crate::OVERLAY_CLICK_THROUGH.load(std::sync::atomic::Ordering::SeqCst);
+            let _ = win.set_ignore_cursor_events(ct);
+            println!("[tauri] refresh_overlay complete");
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_overlay_geometry(
     app: tauri::AppHandle,
     x: f64,
@@ -151,4 +249,18 @@ pub fn set_overlay_geometry(
         .map_err(|e| format!("Failed to set overlay size: {}", e))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn update_hotkeys(
+    app: tauri::AppHandle,
+    interact_key: String,
+    collect_key: String,
+) -> Result<(), String> {
+    crate::hotkey::register_hotkeys(&app, &interact_key, &collect_key)
+}
+
+#[tauri::command]
+pub fn set_collect_hotkey(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    crate::hotkey::register_collect_hotkey_standalone(&app, &key)
 }

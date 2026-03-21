@@ -90,6 +90,9 @@ pub fn run() {
             commands::create_overlay_window,
             commands::toggle_overlay_interaction,
             commands::set_overlay_geometry,
+            commands::refresh_overlay,
+            commands::update_hotkeys,
+            commands::set_collect_hotkey,
         ])
         .setup(|app| {
             let sidecar_path = resolve_sidecar_path();

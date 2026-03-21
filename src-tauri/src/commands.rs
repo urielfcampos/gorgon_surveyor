@@ -20,20 +20,30 @@ pub fn capture_and_detect(
     let pos = overlay.inner_position().map_err(|e| e.to_string())?;
     let size = overlay.inner_size().map_err(|e| e.to_string())?;
 
-    // Hide overlay so it doesn't appear in the screenshot
-    let _ = overlay.hide();
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // Find which monitor the overlay is on and get monitor-relative position
+    let monitors = overlay.available_monitors().map_err(|e| e.to_string())?;
+    let (mon_x, mon_y) = monitors
+        .iter()
+        .find(|m| {
+            let mp = m.position();
+            let ms = m.size();
+            pos.x >= mp.x
+                && pos.x < mp.x + ms.width as i32
+                && pos.y >= mp.y
+                && pos.y < mp.y + ms.height as i32
+        })
+        .map(|m| (m.position().x, m.position().y))
+        .unwrap_or((0, 0));
 
-    let capture_result = crate::portal::capture_screenshot();
+    let rel_x = pos.x - mon_x;
+    let rel_y = pos.y - mon_y;
 
-    // Show overlay again immediately
-    let _ = overlay.show();
-
-    let screenshot_path = capture_result?;
+    // Capture the current monitor — overlay is transparent so game shows through
+    let screenshot_path = crate::portal::capture_screenshot()?;
 
     println!(
-        "[tauri] captured: overlay inner pos {},{} size {}x{}",
-        pos.x, pos.y, size.width, size.height
+        "[tauri] captured: overlay at {},{} (monitor-relative, monitor {},{}), size {}x{}",
+        rel_x, rel_y, mon_x, mon_y, size.width, size.height
     );
 
     let client = reqwest::blocking::Client::new();
@@ -48,10 +58,10 @@ pub fn capture_and_detect(
             .text("zone_y2", y2.to_string());
     }
 
-    // Pass overlay geometry so server can crop correctly
+    // Pass overlay geometry relative to monitor
     form = form
-        .text("overlay_x", pos.x.to_string())
-        .text("overlay_y", pos.y.to_string())
+        .text("overlay_x", rel_x.to_string())
+        .text("overlay_y", rel_y.to_string())
         .text("overlay_w", size.width.to_string())
         .text("overlay_h", size.height.to_string());
 

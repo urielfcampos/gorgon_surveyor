@@ -248,6 +248,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
       {:clear_zone, :detect}
     )
 
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}:zones",
+      {:zone_set, :detect, nil}
+    )
+
     socket = assign(socket, detect_zone: nil)
     {:noreply, socket}
   end
@@ -277,6 +283,12 @@ defmodule GorgonSurveyWeb.SurveyLive do
       GorgonSurvey.PubSub,
       "overlay:#{socket.assigns.session_id}",
       {:clear_zone, :inv}
+    )
+
+    Phoenix.PubSub.broadcast(
+      GorgonSurvey.PubSub,
+      "overlay:#{socket.assigns.session_id}:zones",
+      {:zone_set, :inv, nil}
     )
 
     socket = assign(socket, inv_zone: nil, inv_markers: [])

@@ -25,8 +25,11 @@ defmodule GorgonSurveyWeb.CaptureController do
       |> put_status(400)
       |> json(%{error: "No file or path provided"})
     else
-      # Parse detect zone (the image is already cropped to this region by grim)
       zone = parse_zone(params)
+      overlay = parse_overlay_geometry(params)
+
+      # If we got a fullscreen capture (spectacle fallback), crop to zone
+      png_binary = if overlay, do: crop_to_zone(png_binary, zone, overlay), else: png_binary
 
       case GorgonSurvey.SurveyDetector.detect(png_binary) do
         {:ok, circles} ->
@@ -67,6 +70,41 @@ defmodule GorgonSurveyWeb.CaptureController do
   end
 
   defp parse_zone(_), do: nil
+
+  defp parse_overlay_geometry(%{
+         "overlay_x" => x, "overlay_y" => y,
+         "overlay_w" => w, "overlay_h" => h
+       }) do
+    %{x: to_float(x), y: to_float(y), w: to_float(w), h: to_float(h)}
+  end
+
+  defp parse_overlay_geometry(_), do: nil
+
+  # Crop fullscreen screenshot to the detect zone's screen region
+  defp crop_to_zone(png_binary, nil, _overlay), do: png_binary
+  defp crop_to_zone(png_binary, zone, overlay) do
+    case Vix.Vips.Image.new_from_buffer(png_binary) do
+      {:ok, image} ->
+        img_w = Vix.Vips.Image.width(image)
+        img_h = Vix.Vips.Image.height(image)
+
+        left = round(overlay.x + zone.x1 / 100 * overlay.w) |> max(0) |> min(img_w - 1)
+        top = round(overlay.y + zone.y1 / 100 * overlay.h) |> max(0) |> min(img_h - 1)
+        width = round((zone.x2 - zone.x1) / 100 * overlay.w) |> max(1) |> min(img_w - left)
+        height = round((zone.y2 - zone.y1) / 100 * overlay.h) |> max(1) |> min(img_h - top)
+
+        Logger.info("crop: #{left},#{top} #{width}x#{height} from #{img_w}x#{img_h}")
+
+        with {:ok, cropped} <- Vix.Vips.Operation.extract_area(image, left, top, width, height),
+             {:ok, buffer} <- Vix.Vips.Image.write_to_buffer(cropped, ".png") do
+          buffer
+        else
+          _ -> png_binary
+        end
+
+      _ -> png_binary
+    end
+  end
 
   defp to_float(v) when is_float(v), do: v
   defp to_float(v) when is_integer(v), do: v * 1.0

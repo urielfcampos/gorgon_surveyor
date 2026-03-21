@@ -45,10 +45,15 @@ pub fn capture_and_detect(
         cap_x, cap_y, cap_w, cap_h
     );
 
-    let screenshot_path = crate::portal::capture_region(cap_x, cap_y, cap_w, cap_h)?;
+    let screenshot_result = crate::portal::capture_region(cap_x, cap_y, cap_w, cap_h)?;
 
-    // Send to Phoenix — the image is already cropped to the zone,
-    // so pass zone coords for coordinate mapping back to overlay space
+    // Check if we got a region capture or a fullscreen fallback
+    let (screenshot_path, is_fullscreen) = if screenshot_result.starts_with("FULLSCREEN:") {
+        (screenshot_result.strip_prefix("FULLSCREEN:").unwrap().to_string(), true)
+    } else {
+        (screenshot_result, false)
+    };
+
     let client = reqwest::blocking::Client::new();
     let mut form = reqwest::blocking::multipart::Form::new()
         .text("path", screenshot_path);
@@ -59,6 +64,15 @@ pub fn capture_and_detect(
             .text("zone_y1", y1.to_string())
             .text("zone_x2", x2.to_string())
             .text("zone_y2", y2.to_string());
+    }
+
+    // If fullscreen fallback, pass overlay geometry so server can crop
+    if is_fullscreen {
+        form = form
+            .text("overlay_x", pos.x.to_string())
+            .text("overlay_y", pos.y.to_string())
+            .text("overlay_w", size.width.to_string())
+            .text("overlay_h", size.height.to_string());
     }
 
     let response = client

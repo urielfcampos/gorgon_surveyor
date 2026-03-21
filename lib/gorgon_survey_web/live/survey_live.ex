@@ -20,7 +20,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
        session_id: session_id,
        watcher: nil,
        app_state: GorgonSurvey.AppState.new(),
-       sharing: false,
+       overlay_active: false,
        placing_survey: nil,
        log_folder: log_folder,
        log_mode: :none,
@@ -86,7 +86,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
     # Trigger a single scan to place the new survey's marker
     socket =
       if has_new_survey && socket.assigns.auto_detect_on_survey do
-        push_event(socket, "scan_once", %{})
+        push_event(socket, "trigger_capture", %{session_id: socket.assigns.session_id})
       else
         socket
       end
@@ -181,25 +181,8 @@ defmodule GorgonSurveyWeb.SurveyLive do
   end
 
   @impl true
-  def handle_event("start_sharing", _params, socket) do
-    socket = assign(socket, sharing: true)
-    socket = push_event(socket, "start_capture", %{})
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("stop_sharing", _params, socket) do
-    socket =
-      socket
-      |> assign(sharing: false)
-      |> push_event("stop_capture", %{})
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("stopped_sharing", _params, socket) do
-    {:noreply, assign(socket, sharing: false)}
+  def handle_event("select_game_window", _params, socket) do
+    {:noreply, push_event(socket, "select_game_window", %{})}
   end
 
   @impl true
@@ -266,55 +249,6 @@ defmodule GorgonSurveyWeb.SurveyLive do
       socket
       |> assign(inv_zone: nil, inv_markers: [])
       |> push_event("clear_inv_zone", %{})
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("scan_frame", %{"data" => data_url}, socket) do
-    require Logger
-    Logger.info("scan_frame received, data_url size: #{byte_size(data_url)}")
-
-    png_binary =
-      data_url
-      |> String.split(",", parts: 2)
-      |> List.last()
-      |> Base.decode64!()
-
-    Logger.info("scan_frame decoded PNG: #{byte_size(png_binary)} bytes")
-
-    zone = socket.assigns.detect_zone
-
-    survey_result = GorgonSurvey.SurveyDetector.detect(png_binary)
-
-    map_to_screen = fn {x_pct, y_pct} ->
-      if zone do
-        {zone.x1 + x_pct / 100 * (zone.x2 - zone.x1), zone.y1 + y_pct / 100 * (zone.y2 - zone.y1)}
-      else
-        {x_pct, y_pct}
-      end
-    end
-
-    case survey_result do
-      {:ok, circles} ->
-        circles = Enum.map(circles, map_to_screen)
-        unplaced = Enum.filter(socket.assigns.app_state.surveys, &is_nil(&1.x_pct))
-
-        Logger.info(
-          "scan_frame: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys"
-        )
-
-        if w = watcher(socket) do
-          Enum.zip(unplaced, circles)
-          |> Enum.each(fn {survey, {x_pct, y_pct}} ->
-            Logger.info("scan_frame: placing survey #{survey.id} at (#{x_pct}, #{y_pct})")
-            LogWatcher.place_survey(w, survey.id, x_pct, y_pct)
-          end)
-        end
-
-      other ->
-        Logger.warning("scan_frame: detect returned #{inspect(other)}")
-    end
 
     {:noreply, socket}
   end

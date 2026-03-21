@@ -8,6 +8,29 @@ pub async fn capture_screenshot() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn capture_and_detect(session_id: String) -> Result<serde_json::Value, String> {
+    let screenshot_path = crate::portal::capture_screenshot().await?;
+
+    let client = reqwest::Client::new();
+    let form = reqwest::multipart::Form::new()
+        .text("path", screenshot_path);
+
+    let response = client
+        .post(format!("http://localhost:4840/api/capture/{}", session_id))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send capture: {}", e))?;
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(body)
+}
+
+#[tauri::command]
 pub fn toggle_overlay_interaction(app: tauri::AppHandle) -> Result<bool, String> {
     let overlay = app
         .get_webview_window("overlay")

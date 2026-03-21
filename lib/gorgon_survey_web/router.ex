@@ -21,10 +21,11 @@ defmodule GorgonSurveyWeb.Router do
     live "/overlay", OverlayLive
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", GorgonSurveyWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", GorgonSurveyWeb do
+    pipe_through :api
+
+    post "/capture/:session_id", CaptureController, :create
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:gorgon_survey, :dev_routes) do

@@ -1,0 +1,25 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for Gorgon Survey",
+  "windows": ["main", "overlay"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/phoenix-server",
+          "sidecar": true
+        }
+      ]
+    },
+    "shell:allow-open",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
+  ]
+}

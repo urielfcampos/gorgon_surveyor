@@ -155,19 +155,19 @@ const OverlayCanvas = {
 
     ctx.clearRect(0, 0, W, H);
 
-    if (!this.state) return;
-
-    const placed = this.state.surveys.filter((s) => s.x_pct != null);
-    const collected = placed.filter((s) => s.collected);
-    const uncollected = placed.filter((s) => !s.collected);
-
-    // Draw layers in order: zones, collected (background), route, uncollected (foreground)
+    // Draw zones even if state hasn't arrived yet
     if (this.detectZone) {
       drawDetectZone(ctx, this.detectZone, W, H);
     }
     if (this.invZone) {
       drawInventoryZone(ctx, this.invZone, W, H);
     }
+
+    if (!this.state) return;
+
+    const placed = this.state.surveys.filter((s) => s.x_pct != null);
+    const collected = placed.filter((s) => s.collected);
+    const uncollected = placed.filter((s) => !s.collected);
 
     drawCollectedSurveys(ctx, collected, W, H);
     drawRoute(ctx, this.routeOrder, placed, W, H);

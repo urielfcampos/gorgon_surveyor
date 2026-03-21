@@ -25,9 +25,10 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/gorgon_survey"
 import ScreenCapture from "./hooks/screen_capture"
 import LogStreamer from "./hooks/log_streamer"
+import OverlayCanvas from "./hooks/overlay_canvas"
 import topbar from "../vendor/topbar"
 
-const Hooks = { ...colocatedHooks, ScreenCapture, LogStreamer }
+const Hooks = { ...colocatedHooks, ScreenCapture, LogStreamer, OverlayCanvas }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -40,6 +41,73 @@ const liveSocket = new LiveSocket("/live", Socket, {
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+
+// Handle Tauri commands from LiveView events
+window.addEventListener("phx:select_game_window", async (e) => {
+  const sessionId = e.detail && e.detail.session_id || "default"
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      await invoke("create_overlay_window", { sessionId })
+      console.log("[tauri] Overlay window created for session:", sessionId)
+    } catch (err) {
+      console.error("[tauri] Failed to create overlay:", err)
+      alert("Failed to create overlay window: " + err)
+    }
+  } else {
+    console.warn("Not running inside Tauri — overlay not available")
+  }
+})
+
+window.addEventListener("phx:trigger_capture", async (e) => {
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      const detail = e.detail || {}
+      const params = { sessionId: detail.session_id || "default" }
+
+      // Pass detect zone if available
+      if (detail.detect_zone) {
+        params.zoneX1 = detail.detect_zone.x1
+        params.zoneY1 = detail.detect_zone.y1
+        params.zoneX2 = detail.detect_zone.x2
+        params.zoneY2 = detail.detect_zone.y2
+      }
+
+      const result = await invoke("capture_and_detect", params)
+      console.log("[tauri] Capture result:", result)
+    } catch (err) {
+      console.error("[tauri] Capture failed:", err)
+    }
+  }
+})
+
+window.addEventListener("phx:set_collect_hotkey", async (e) => {
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core;
+      const key = e.detail && e.detail.key || "";
+      await invoke("set_collect_hotkey", { key });
+      console.log("[tauri] Collect hotkey set to:", key);
+    } catch (err) {
+      console.error("[tauri] Failed to set collect hotkey:", err);
+    }
+  }
+});
+
+// Force overlay window repaint — workaround for WebKitGTK transparent window bug (tauri#12800)
+window.addEventListener("phx:refresh_overlay", async () => {
+  console.log("[sidebar] phx:refresh_overlay event received, __TAURI__:", !!window.__TAURI__)
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      await invoke("refresh_overlay")
+      console.log("[sidebar] refresh_overlay invoke completed")
+    } catch (err) {
+      console.error("[sidebar] Failed to refresh overlay:", err)
+    }
+  }
+})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

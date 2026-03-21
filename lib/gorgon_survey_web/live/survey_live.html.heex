@@ -1,19 +1,13 @@
-<div class="app-layout">
-  <main class="main-area">
-    <div id="screen-capture" phx-hook="ScreenCapture" phx-update="ignore"></div>
-    <%= unless @sharing do %>
-      <button phx-click="start_sharing" class="share-btn">Share Screen</button>
-    <% end %>
-
-    <%= if @placing_survey do %>
-      <div class="placement-prompt">
-        Click on the map to place survey
-      </div>
-    <% end %>
-  </main>
-
+<div class="panel-layout">
   <aside class="sidebar">
     <div class="tab-bar">
+      <%= unless @overlay_active do %>
+        <button phx-click="select_game_window" class="tab-btn select-window-btn">
+          Select Window
+        </button>
+      <% else %>
+        <span class="tab-btn overlay-active-badge">Overlay On</span>
+      <% end %>
       <button
         phx-click="switch_tab"
         phx-value-tab="surveys"
@@ -186,6 +180,32 @@
       <% end %>
 
       <div class="settings-section">
+        <h3>Overlay</h3>
+        <%= if @overlay_active do %>
+          <span class="watcher-dot"></span> Overlay active
+        <% else %>
+          <span>No game window selected</span>
+        <% end %>
+      </div>
+
+      <div class="settings-section">
+        <h3>Collect Hotkey</h3>
+        <form phx-submit="set_collect_hotkey">
+          <input
+            type="text"
+            name="key"
+            value={@collect_hotkey}
+            placeholder="e.g. F11"
+          />
+          <button type="submit">Set</button>
+        </form>
+        <p class="hint">
+          Global hotkey to mark the survey under cursor as collected.
+          Examples: F11, F10, F9
+        </p>
+      </div>
+
+      <div class="settings-section">
         <h3>Auto-Detect</h3>
         <button
           phx-click="toggle_auto_detect_on_survey"
@@ -211,11 +231,13 @@
       </div>
 
       <div class="settings-section">
-        <h3>1. Share Your Screen</h3>
+        <h3>1. Select Game Window</h3>
         <p class="hint">
-          Click the <strong>Share Screen</strong>
-          button and select your Project Gorgon game window.
-          The game video will appear in the main area with a canvas overlay for markers.
+          Click the <strong>Select Game Window</strong>
+          button to choose your Project Gorgon game window.
+          An overlay will appear on top of the game for placing markers.
+          Press <kbd>F12</kbd>
+          to toggle interaction mode (click-through vs interactive).
         </p>
       </div>
 
@@ -261,7 +283,8 @@
         <p class="hint">
           As surveys appear in the chat log, they show up in the sidebar list.
           With auto-detect ON, markers are placed automatically on the map.
-          With auto-detect OFF, click on the map to manually place each survey marker.
+          With auto-detect OFF, press <kbd>F12</kbd> to enter interactive mode, then
+          click on the overlay to manually place each survey marker.
           Use the &#8982; button next to a survey to reposition its marker.
         </p>
       </div>
@@ -291,13 +314,6 @@
           Click <strong>Lock Surveys</strong> to prevent accidental marker changes.
           Click <strong>Unlock Surveys</strong> to allow edits again.
         </p>
-      </div>
-    <% end %>
-
-    <%= if @sharing do %>
-      <hr class="sidebar-divider" />
-      <div class="section">
-        <button phx-click="stop_sharing" class="sidebar-stop-btn">Stop Sharing</button>
       </div>
     <% end %>
   </aside>

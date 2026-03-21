@@ -1,0 +1,39 @@
+{
+  "productName": "Gorgon Survey",
+  "version": "0.1.0",
+  "identifier": "com.gorgon-survey.app",
+  "build": {
+    "frontendDist": "../priv/static"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Gorgon Survey",
+        "url": "http://localhost:4840",
+        "width": 380,
+        "height": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/phoenix-server"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

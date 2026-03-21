@@ -1,26 +1,13 @@
-// Nearest-neighbor TSP: returns surveys reordered by shortest path
-function optimizeRoute(surveys) {
-  if (surveys.length <= 2) return surveys;
-  const dist = (a, b) =>
-    Math.hypot(a.x_pct - b.x_pct, a.y_pct - b.y_pct);
-
-  const remaining = [...surveys];
-  const route = [remaining.shift()];
-  while (remaining.length > 0) {
-    const last = route[route.length - 1];
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const d = dist(last, remaining[i]);
-      if (d < bestDist) {
-        bestDist = d;
-        bestIdx = i;
-      }
-    }
-    route.push(remaining.splice(bestIdx, 1)[0]);
-  }
-  return route;
-}
+import {
+  optimizeRoute,
+  drawCollectedSurveys,
+  drawUncollectedSurveys,
+  drawRoute,
+  drawDetectZone,
+  drawInventoryZone,
+  drawInventoryMarkers,
+  drawMotherlode
+} from "./canvas_drawing.js";
 
 const ScreenCapture = {
   mounted() {
@@ -331,7 +318,7 @@ const ScreenCapture = {
     ctx.clearRect(0, 0, W, H);
 
     if (this.state.mode === "motherlode") {
-      this.drawMotherlode();
+      drawMotherlode(ctx, this.state.motherlode, W, H);
       // Still draw zone corner if setting
       if (this.settingZone && this.zoneCorner1) {
         const cx = (this.zoneCorner1.x / 100) * W;
@@ -356,122 +343,26 @@ const ScreenCapture = {
     const uncollected = allPlaced.filter(s => !s.collected);
 
     // Pass 1: Draw collected markers (background layer, lower opacity)
-    ctx.globalAlpha = 0.45;
-    for (const s of collected) {
-      const x = (s.x_pct / 100) * W;
-      const y = (s.y_pct / 100) * H;
-
-      ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(0,200,0,0.55)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.font = "bold 9px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(s.survey_number), x, y);
-    }
-    ctx.globalAlpha = 1.0;
+    drawCollectedSurveys(ctx, collected, W, H);
 
     // Draw route path using cached order, filtering out collected surveys
-    const surveyById = Object.fromEntries(allPlaced.map(s => [s.id, s]));
-    const routeSurveys = this.routeOrder
-      .filter(id => surveyById[id] && !surveyById[id].collected)
-      .map(id => surveyById[id]);
-
-    if (routeSurveys.length > 1) {
-      ctx.beginPath();
-      ctx.moveTo((routeSurveys[0].x_pct / 100) * W, (routeSurveys[0].y_pct / 100) * H);
-      for (let i = 1; i < routeSurveys.length; i++) {
-        ctx.lineTo((routeSurveys[i].x_pct / 100) * W, (routeSurveys[i].y_pct / 100) * H);
-      }
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    drawRoute(ctx, this.routeOrder, allPlaced, W, H);
 
     // Pass 2: Draw uncollected markers (foreground layer, full visibility)
-    for (const s of uncollected) {
-      const x = (s.x_pct / 100) * W;
-      const y = (s.y_pct / 100) * H;
-
-      ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(0,150,255,0.55)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.font = "bold 9px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(s.survey_number), x, y);
-    }
-
+    drawUncollectedSurveys(ctx, uncollected, W, H);
 
     // Draw detect zone rectangle
     if (this.detectZone) {
-      const z = this.detectZone;
-      const zx = (z.x1 / 100) * W;
-      const zy = (z.y1 / 100) * H;
-      const zw = ((z.x2 - z.x1) / 100) * W;
-      const zh = ((z.y2 - z.y1) / 100) * H;
-      ctx.strokeStyle = "rgba(255,255,0,0.7)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]);
-      ctx.strokeRect(zx, zy, zw, zh);
-      ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(255,255,0,0.6)";
-      ctx.font = "bold 12px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      ctx.fillText("Detect Zone", zx + 4, zy - 4);
+      drawDetectZone(ctx, this.detectZone, W, H);
     }
 
     // Draw inventory zone rectangle
     if (this.invZone) {
-      const z = this.invZone;
-      const zx = (z.x1 / 100) * W;
-      const zy = (z.y1 / 100) * H;
-      const zw = ((z.x2 - z.x1) / 100) * W;
-      const zh = ((z.y2 - z.y1) / 100) * H;
-      ctx.strokeStyle = "rgba(0,255,200,0.7)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]);
-      ctx.strokeRect(zx, zy, zw, zh);
-      ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(0,255,200,0.6)";
-      ctx.font = "bold 12px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      ctx.fillText("Inventory Zone", zx + 4, zy - 4);
+      drawInventoryZone(ctx, this.invZone, W, H);
     }
 
     // Draw inventory survey number tags
-    for (const m of this.invMarkers) {
-      const x = (m.x_pct / 100) * W;
-      const y = (m.y_pct / 100) * H;
-      ctx.beginPath();
-      ctx.arc(x, y, 8, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(0,150,255,0.7)";
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 8px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(m.number), x, y);
-    }
+    drawInventoryMarkers(ctx, this.invMarkers, W, H);
 
     // Draw first corner marker when setting zone
     if (this.settingZone && this.zoneCorner1) {
@@ -490,61 +381,6 @@ const ScreenCapture = {
       this.canvas.style.cursor = "crosshair";
     } else {
       this.canvas.style.cursor = "default";
-    }
-  },
-
-  drawMotherlode() {
-    const ctx = this.ctx;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    const ml = this.state.motherlode;
-    if (!ml) return;
-
-    // Draw reading position dots
-    for (let i = 0; i < ml.readings.length; i++) {
-      const r = ml.readings[i];
-      const x = (r.x_pct / 100) * W;
-      const y = (r.y_pct / 100) * H;
-
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(200,200,200,0.6)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.8)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.font = "bold 8px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(i + 1), x, y);
-    }
-
-    // Draw estimated location marker (orange diamond)
-    if (ml.estimated_location) {
-      const ex = (ml.estimated_location.x_pct / 100) * W;
-      const ey = (ml.estimated_location.y_pct / 100) * H;
-      const size = 12;
-
-      ctx.beginPath();
-      ctx.moveTo(ex, ey - size);
-      ctx.lineTo(ex + size, ey);
-      ctx.lineTo(ex, ey + size);
-      ctx.lineTo(ex - size, ey);
-      ctx.closePath();
-      ctx.fillStyle = "rgba(255,165,0,0.8)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // "X" label
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("X", ex, ey);
     }
   },
 

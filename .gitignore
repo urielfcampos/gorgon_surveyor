@@ -36,3 +36,9 @@ npm-debug.log
 /assets/node_modules/
 
 /docs/
+
+# Tauri
+/src-tauri/target/
+/src-tauri/binaries/phoenix-server-*
+/src-tauri/gen/
+/node_modules/

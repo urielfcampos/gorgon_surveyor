@@ -11,7 +11,8 @@ defmodule GorgonSurvey.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: releases()
     ]
   end
 
@@ -28,6 +29,16 @@ defmodule GorgonSurvey.MixProject do
   def cli do
     [
       preferred_envs: [precommit: :test]
+    ]
+  end
+
+  defp releases do
+    [
+      desktop: [
+        include_executables_for: [:unix],
+        rel_templates_path: "rel",
+        steps: [:assemble]
+      ]
     ]
   end
 

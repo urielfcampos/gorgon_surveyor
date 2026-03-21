@@ -33,9 +33,9 @@ pub async fn capture_and_detect(
             .text("zone_y2", y2.to_string());
     }
 
-    // Pass overlay window geometry so the server knows where to crop
+    // Pass overlay window inner geometry (content area, excluding title bar)
     if let Some(overlay) = app.get_webview_window("overlay") {
-        if let (Ok(pos), Ok(size)) = (overlay.outer_position(), overlay.outer_size()) {
+        if let (Ok(pos), Ok(size)) = (overlay.inner_position(), overlay.inner_size()) {
             form = form
                 .text("overlay_x", pos.x.to_string())
                 .text("overlay_y", pos.y.to_string())

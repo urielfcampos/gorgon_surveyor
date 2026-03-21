@@ -20,39 +20,9 @@ pub fn capture_and_detect(
     let pos = overlay.inner_position().map_err(|e| e.to_string())?;
     let size = overlay.inner_size().map_err(|e| e.to_string())?;
 
-    // Calculate screen region to capture
-    let (cap_x, cap_y, cap_w, cap_h) =
-        if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (zone_x1, zone_y1, zone_x2, zone_y2) {
-            // Capture just the detect zone region (zone coords are overlay percentages)
-            let ox = pos.x as f64;
-            let oy = pos.y as f64;
-            let ow = size.width as f64;
-            let oh = size.height as f64;
+    println!("[tauri] spectacle capture: fullscreen");
 
-            let zx = ox + x1 / 100.0 * ow;
-            let zy = oy + y1 / 100.0 * oh;
-            let zw = (x2 - x1) / 100.0 * ow;
-            let zh = (y2 - y1) / 100.0 * oh;
-
-            (zx as i32, zy as i32, zw.max(1.0) as u32, zh.max(1.0) as u32)
-        } else {
-            // Capture the full overlay region
-            (pos.x, pos.y, size.width, size.height)
-        };
-
-    println!(
-        "[tauri] grim capture: region {},{} {}x{}",
-        cap_x, cap_y, cap_w, cap_h
-    );
-
-    let screenshot_result = crate::portal::capture_region(cap_x, cap_y, cap_w, cap_h)?;
-
-    // Check if we got a region capture or a fullscreen fallback
-    let (screenshot_path, is_fullscreen) = if screenshot_result.starts_with("FULLSCREEN:") {
-        (screenshot_result.strip_prefix("FULLSCREEN:").unwrap().to_string(), true)
-    } else {
-        (screenshot_result, false)
-    };
+    let screenshot_path = crate::portal::capture_screenshot()?;
 
     let client = reqwest::blocking::Client::new();
     let mut form = reqwest::blocking::multipart::Form::new()
@@ -66,14 +36,12 @@ pub fn capture_and_detect(
             .text("zone_y2", y2.to_string());
     }
 
-    // If fullscreen fallback, pass overlay geometry so server can crop
-    if is_fullscreen {
-        form = form
-            .text("overlay_x", pos.x.to_string())
-            .text("overlay_y", pos.y.to_string())
-            .text("overlay_w", size.width.to_string())
-            .text("overlay_h", size.height.to_string());
-    }
+    // Pass overlay geometry so server can crop fullscreen to detect zone
+    form = form
+        .text("overlay_x", pos.x.to_string())
+        .text("overlay_y", pos.y.to_string())
+        .text("overlay_w", size.width.to_string())
+        .text("overlay_h", size.height.to_string());
 
     let response = client
         .post(format!("http://localhost:4840/api/capture/{}", session_id))

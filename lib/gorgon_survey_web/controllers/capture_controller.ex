@@ -26,15 +26,14 @@ defmodule GorgonSurveyWeb.CaptureController do
       |> json(%{error: "No file or path provided"})
     else
       zone = parse_zone(params)
-      overlay = parse_overlay_geometry(params)
 
-      # If we got a fullscreen capture (spectacle fallback), crop to zone
-      png_binary = if overlay, do: crop_to_zone(png_binary, zone, overlay), else: png_binary
+      # Crop screenshot to detect zone region (zone is % of the screenshot)
+      png_binary = crop_by_percentage(png_binary, zone)
 
       case GorgonSurvey.SurveyDetector.detect(png_binary) do
         {:ok, circles} ->
-          # Detected coords are zone-relative percentages — map to overlay space
-          circles = Enum.map(circles, &map_to_overlay(&1, zone))
+          # Detected coords are zone-relative — map back to full image space
+          circles = Enum.map(circles, &map_to_full(&1, zone))
 
           app_state = LogWatcher.get_state(watcher)
           unplaced = Enum.filter(app_state.surveys, &is_nil(&1.x_pct))
@@ -59,39 +58,35 @@ defmodule GorgonSurveyWeb.CaptureController do
     end
   end
 
-  # Parse zone from request params. Zone coords are percentages of the overlay.
   defp parse_zone(%{"zone_x1" => x1, "zone_y1" => y1, "zone_x2" => x2, "zone_y2" => y2}) do
-    %{
-      x1: to_float(x1),
-      y1: to_float(y1),
-      x2: to_float(x2),
-      y2: to_float(y2)
-    }
+    %{x1: to_float(x1), y1: to_float(y1), x2: to_float(x2), y2: to_float(y2)}
   end
 
   defp parse_zone(_), do: nil
 
-  defp parse_overlay_geometry(%{
-         "overlay_x" => x, "overlay_y" => y,
-         "overlay_w" => w, "overlay_h" => h
-       }) do
-    %{x: to_float(x), y: to_float(y), w: to_float(w), h: to_float(h)}
+  defp to_float(v) when is_float(v), do: v
+  defp to_float(v) when is_integer(v), do: v * 1.0
+
+  defp to_float(v) when is_binary(v) do
+    case Float.parse(v) do
+      {f, _} -> f
+      :error -> String.to_integer(v) * 1.0
+    end
   end
 
-  defp parse_overlay_geometry(_), do: nil
+  # Crop image using zone percentages directly on the image
+  defp crop_by_percentage(png_binary, nil), do: png_binary
 
-  # Crop fullscreen screenshot to the detect zone's screen region
-  defp crop_to_zone(png_binary, nil, _overlay), do: png_binary
-  defp crop_to_zone(png_binary, zone, overlay) do
+  defp crop_by_percentage(png_binary, zone) do
     case Vix.Vips.Image.new_from_buffer(png_binary) do
       {:ok, image} ->
         img_w = Vix.Vips.Image.width(image)
         img_h = Vix.Vips.Image.height(image)
 
-        left = round(overlay.x + zone.x1 / 100 * overlay.w) |> max(0) |> min(img_w - 1)
-        top = round(overlay.y + zone.y1 / 100 * overlay.h) |> max(0) |> min(img_h - 1)
-        width = round((zone.x2 - zone.x1) / 100 * overlay.w) |> max(1) |> min(img_w - left)
-        height = round((zone.y2 - zone.y1) / 100 * overlay.h) |> max(1) |> min(img_h - top)
+        left = round(zone.x1 / 100 * img_w) |> max(0) |> min(img_w - 1)
+        top = round(zone.y1 / 100 * img_h) |> max(0) |> min(img_h - 1)
+        width = round((zone.x2 - zone.x1) / 100 * img_w) |> max(1) |> min(img_w - left)
+        height = round((zone.y2 - zone.y1) / 100 * img_h) |> max(1) |> min(img_h - top)
 
         Logger.info("crop: #{left},#{top} #{width}x#{height} from #{img_w}x#{img_h}")
 
@@ -102,23 +97,15 @@ defmodule GorgonSurveyWeb.CaptureController do
           _ -> png_binary
         end
 
-      _ -> png_binary
+      _ ->
+        png_binary
     end
   end
 
-  defp to_float(v) when is_float(v), do: v
-  defp to_float(v) when is_integer(v), do: v * 1.0
-  defp to_float(v) when is_binary(v) do
-    case Float.parse(v) do
-      {f, _} -> f
-      :error -> String.to_integer(v) * 1.0
-    end
-  end
+  # Map zone-relative percentages back to full image percentages
+  defp map_to_full({x_pct, y_pct}, nil), do: {x_pct, y_pct}
 
-  # Map coordinates from zone-relative percentages to overlay-relative percentages
-  defp map_to_overlay({x_pct, y_pct}, nil), do: {x_pct, y_pct}
-
-  defp map_to_overlay({x_pct, y_pct}, zone) do
+  defp map_to_full({x_pct, y_pct}, zone) do
     {
       zone.x1 + x_pct / 100 * (zone.x2 - zone.x1),
       zone.y1 + y_pct / 100 * (zone.y2 - zone.y1)

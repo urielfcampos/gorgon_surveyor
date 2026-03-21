@@ -17,35 +17,26 @@ pub fn capture_and_detect(
         .get_webview_window("overlay")
         .ok_or_else(|| "Overlay window not found".to_string())?;
 
-    let pos = overlay.inner_position().map_err(|e| e.to_string())?;
-    let size = overlay.inner_size().map_err(|e| e.to_string())?;
+    // Hide overlay so it doesn't appear in the screenshot
+    let _ = overlay.hide();
+    std::thread::sleep(std::time::Duration::from_millis(100));
 
-    // Find the monitor that actually contains the overlay window
-    let monitors = overlay.available_monitors().map_err(|e| e.to_string())?;
-    let (mon_x, mon_y) = monitors
-        .iter()
-        .find(|m| {
-            let mp = m.position();
-            let ms = m.size();
-            pos.x >= mp.x
-                && pos.x < mp.x + ms.width as i32
-                && pos.y >= mp.y
-                && pos.y < mp.y + ms.height as i32
-        })
-        .map(|m| (m.position().x, m.position().y))
-        .unwrap_or((0, 0));
+    // Capture the current monitor (game should be visible now)
+    let capture_result = crate::portal::capture_screenshot();
 
-    // Overlay position relative to its monitor
-    let rel_x = pos.x - mon_x;
-    let rel_y = pos.y - mon_y;
+    // Show overlay again immediately
+    let _ = overlay.show();
 
-    println!(
-        "[tauri] spectacle -m capture: overlay at {},{} (monitor-relative, monitor origin {},{}), size {}x{}",
-        rel_x, rel_y, mon_x, mon_y, size.width, size.height
-    );
+    let screenshot_path = capture_result?;
 
-    let screenshot_path = crate::portal::capture_screenshot()?;
+    println!("[tauri] captured screenshot: {}", screenshot_path);
 
+    // The screenshot is the full monitor. The detect zone percentages
+    // are relative to the overlay window, which covers the game.
+    // Since we can't get overlay position on Wayland, we send the
+    // zone as pixel coordinates that the server will use to crop.
+    // For now, just send the zone percentages and let the server
+    // treat them as percentages of the full screenshot.
     let client = reqwest::blocking::Client::new();
     let mut form = reqwest::blocking::multipart::Form::new()
         .text("path", screenshot_path);
@@ -57,13 +48,6 @@ pub fn capture_and_detect(
             .text("zone_x2", x2.to_string())
             .text("zone_y2", y2.to_string());
     }
-
-    // Pass overlay geometry relative to monitor origin
-    form = form
-        .text("overlay_x", rel_x.to_string())
-        .text("overlay_y", rel_y.to_string())
-        .text("overlay_w", size.width.to_string())
-        .text("overlay_h", size.height.to_string());
 
     let response = client
         .post(format!("http://localhost:4840/api/capture/{}", session_id))
@@ -80,7 +64,6 @@ pub fn capture_and_detect(
 
 #[tauri::command]
 pub fn create_overlay_window(app: tauri::AppHandle, session_id: String) -> Result<(), String> {
-    // If overlay already exists, just show it
     if let Some(overlay) = app.get_webview_window("overlay") {
         overlay.show().map_err(|e| e.to_string())?;
         return Ok(());
@@ -116,7 +99,6 @@ pub fn toggle_overlay_interaction(app: tauri::AppHandle) -> Result<bool, String>
 
     OVERLAY_CLICK_THROUGH.store(new_click_through, std::sync::atomic::Ordering::SeqCst);
 
-    // Return whether the overlay is now interactive (i.e., NOT ignoring cursor events)
     Ok(!new_click_through)
 }
 

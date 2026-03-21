@@ -42,6 +42,35 @@ topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
+// Handle Tauri commands from LiveView events
+window.addEventListener("phx:select_game_window", async () => {
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      await invoke("create_overlay_window")
+      console.log("[tauri] Overlay window created")
+    } catch (e) {
+      console.error("[tauri] Failed to create overlay:", e)
+      alert("Failed to create overlay window: " + e)
+    }
+  } else {
+    console.warn("Not running inside Tauri — overlay not available")
+  }
+})
+
+window.addEventListener("phx:trigger_capture", async (e) => {
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core
+      const sessionId = e.detail.session_id || "default"
+      const result = await invoke("capture_and_detect", { sessionId })
+      console.log("[tauri] Capture result:", result)
+    } catch (e) {
+      console.error("[tauri] Capture failed:", e)
+    }
+  }
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

@@ -32,6 +32,7 @@ const OverlayCanvas = {
 
     // LiveView event listeners
     this.handleEvent("state_updated", (state) => {
+      console.log("[overlay] state_updated:", state.surveys?.length, "surveys");
       this.state = state;
       this._updateRoute();
       this._draw();
@@ -142,6 +143,12 @@ const OverlayCanvas = {
   },
 
   _draw() {
+    // Use requestAnimationFrame to ensure WebKitGTK repaints transparent canvas
+    cancelAnimationFrame(this._rafId);
+    this._rafId = requestAnimationFrame(() => this._doDraw());
+  },
+
+  _doDraw() {
     const ctx = this.ctx;
     const W = this.canvas.width;
     const H = this.canvas.height;

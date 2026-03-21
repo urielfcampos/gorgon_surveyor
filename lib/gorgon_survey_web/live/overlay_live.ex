@@ -2,6 +2,7 @@ defmodule GorgonSurveyWeb.OverlayLive do
   use GorgonSurveyWeb, :live_view
 
   alias GorgonSurvey.LogWatcher
+  require Logger
 
   @impl true
   def mount(params, _session, socket) do
@@ -31,6 +32,8 @@ defmodule GorgonSurveyWeb.OverlayLive do
 
   @impl true
   def handle_info({:state_updated, app_state}, socket) do
+    Logger.info("overlay received state_updated: #{length(app_state.surveys)} surveys")
+
     socket =
       socket
       |> assign(app_state: app_state)

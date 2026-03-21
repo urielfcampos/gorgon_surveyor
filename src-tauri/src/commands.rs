@@ -11,6 +11,7 @@ pub async fn capture_screenshot() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn capture_and_detect(
+    app: tauri::AppHandle,
     session_id: String,
     zone_x1: Option<f64>,
     zone_y1: Option<f64>,
@@ -23,13 +24,24 @@ pub async fn capture_and_detect(
     let mut form = reqwest::multipart::Form::new()
         .text("path", screenshot_path);
 
-    // Pass detect zone coordinates so the server can map detected positions
+    // Pass detect zone coordinates so the server can crop and map
     if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (zone_x1, zone_y1, zone_x2, zone_y2) {
         form = form
             .text("zone_x1", x1.to_string())
             .text("zone_y1", y1.to_string())
             .text("zone_x2", x2.to_string())
             .text("zone_y2", y2.to_string());
+    }
+
+    // Pass overlay window geometry so the server knows where to crop
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if let (Ok(pos), Ok(size)) = (overlay.outer_position(), overlay.outer_size()) {
+            form = form
+                .text("overlay_x", pos.x.to_string())
+                .text("overlay_y", pos.y.to_string())
+                .text("overlay_w", size.width.to_string())
+                .text("overlay_h", size.height.to_string());
+        }
     }
 
     let response = client

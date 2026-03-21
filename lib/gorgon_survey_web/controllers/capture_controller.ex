@@ -25,12 +25,16 @@ defmodule GorgonSurveyWeb.CaptureController do
       |> put_status(400)
       |> json(%{error: "No file or path provided"})
     else
-      # Parse detect zone from params (percentages of overlay window)
+      # Parse detect zone and overlay geometry
       zone = parse_zone(params)
+      overlay = parse_overlay_geometry(params)
+
+      # Crop screenshot to the detect zone's screen region
+      png_binary = crop_to_zone(png_binary, zone, overlay)
 
       case GorgonSurvey.SurveyDetector.detect(png_binary) do
         {:ok, circles} ->
-          # Map detected coordinates from zone-relative to overlay-relative
+          # Detected coords are now zone-relative percentages — map to overlay space
           circles = Enum.map(circles, &map_to_overlay(&1, zone))
 
           app_state = LogWatcher.get_state(watcher)
@@ -68,9 +72,66 @@ defmodule GorgonSurveyWeb.CaptureController do
 
   defp parse_zone(_), do: nil
 
+  # Parse overlay window geometry (screen pixel position and size)
+  defp parse_overlay_geometry(%{
+         "overlay_x" => x,
+         "overlay_y" => y,
+         "overlay_w" => w,
+         "overlay_h" => h
+       }) do
+    %{x: to_float(x), y: to_float(y), w: to_float(w), h: to_float(h)}
+  end
+
+  defp parse_overlay_geometry(_), do: nil
+
   defp to_float(v) when is_float(v), do: v
-  defp to_float(v) when is_integer(v), do: v / 1
-  defp to_float(v) when is_binary(v), do: String.to_float(v)
+  defp to_float(v) when is_integer(v), do: v * 1.0
+  defp to_float(v) when is_binary(v) do
+    case Float.parse(v) do
+      {f, _} -> f
+      :error -> String.to_integer(v) * 1.0
+    end
+  end
+
+  # Crop the screenshot to the detect zone's screen region
+  defp crop_to_zone(png_binary, nil, _overlay), do: png_binary
+  defp crop_to_zone(png_binary, _zone, nil), do: png_binary
+
+  defp crop_to_zone(png_binary, zone, overlay) do
+    case Vix.Vips.Image.new_from_buffer(png_binary) do
+      {:ok, image} ->
+        img_w = Vix.Vips.Image.width(image)
+        img_h = Vix.Vips.Image.height(image)
+
+        # Zone percentages → pixel coords within overlay → screen pixels
+        zone_left = overlay.x + zone.x1 / 100 * overlay.w
+        zone_top = overlay.y + zone.y1 / 100 * overlay.h
+        zone_w = (zone.x2 - zone.x1) / 100 * overlay.w
+        zone_h = (zone.y2 - zone.y1) / 100 * overlay.h
+
+        # Clamp to image bounds
+        left = max(0, round(zone_left)) |> min(img_w - 1)
+        top = max(0, round(zone_top)) |> min(img_h - 1)
+        width = max(1, round(zone_w)) |> min(img_w - left)
+        height = max(1, round(zone_h)) |> min(img_h - top)
+
+        Logger.info("crop: screen=#{img_w}x#{img_h}, overlay=#{round(overlay.x)},#{round(overlay.y)} #{round(overlay.w)}x#{round(overlay.h)}, zone crop=#{left},#{top} #{width}x#{height}")
+
+        case Vix.Vips.Operation.extract_area(image, left, top, width, height) do
+          {:ok, cropped} ->
+            case Vix.Vips.Image.write_to_buffer(cropped, ".png") do
+              {:ok, buffer} -> buffer
+              _ -> png_binary
+            end
+
+          _ ->
+            png_binary
+        end
+
+      _ ->
+        png_binary
+    end
+  end
 
   # Map coordinates from zone-relative percentages to overlay-relative percentages
   defp map_to_overlay({x_pct, y_pct}, nil), do: {x_pct, y_pct}

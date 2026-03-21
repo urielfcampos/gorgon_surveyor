@@ -76,7 +76,7 @@ pub fn create_overlay_window(app: tauri::AppHandle, session_id: String) -> Resul
         .title("Overlay — F12 to interact")
         .inner_size(800.0, 600.0)
         .transparent(true)
-        .decorations(false)
+        .decorations(true)
         .always_on_top(true)
         .build()
         .map_err(|e| format!("Failed to create overlay window: {}", e))?;

@@ -72,14 +72,20 @@ pub fn create_overlay_window(app: tauri::AppHandle, session_id: String) -> Resul
     let url_str = format!("http://localhost:4840/overlay?session_id={}", session_id);
     let url = WebviewUrl::External(url_str.parse().unwrap());
 
-    let _overlay = WebviewWindowBuilder::new(&app, "overlay", url)
+    let overlay = WebviewWindowBuilder::new(&app, "overlay", url)
         .title("Overlay — F12 to interact")
         .inner_size(800.0, 600.0)
         .transparent(true)
-        .decorations(true)
+        .decorations(false)
         .always_on_top(true)
         .build()
         .map_err(|e| format!("Failed to create overlay window: {}", e))?;
+
+    // Start in click-through mode
+    overlay
+        .set_ignore_cursor_events(true)
+        .map_err(|e| format!("Failed to set click-through: {}", e))?;
+    OVERLAY_CLICK_THROUGH.store(true, std::sync::atomic::Ordering::SeqCst);
 
     Ok(())
 }

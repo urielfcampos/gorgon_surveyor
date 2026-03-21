@@ -86,7 +86,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            commands::capture_screenshot,
             commands::capture_and_detect,
             commands::create_overlay_window,
             commands::toggle_overlay_interaction,

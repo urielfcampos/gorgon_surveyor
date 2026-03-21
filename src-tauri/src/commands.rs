@@ -5,12 +5,7 @@ use tauri::webview::WebviewWindowBuilder;
 use crate::OVERLAY_CLICK_THROUGH;
 
 #[tauri::command]
-pub async fn capture_screenshot() -> Result<String, String> {
-    crate::portal::capture_screenshot().await
-}
-
-#[tauri::command]
-pub async fn capture_and_detect(
+pub fn capture_and_detect(
     app: tauri::AppHandle,
     session_id: String,
     zone_x1: Option<f64>,
@@ -18,13 +13,46 @@ pub async fn capture_and_detect(
     zone_x2: Option<f64>,
     zone_y2: Option<f64>,
 ) -> Result<serde_json::Value, String> {
-    let screenshot_path = crate::portal::capture_screenshot().await?;
+    let overlay = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
 
-    let client = reqwest::Client::new();
-    let mut form = reqwest::multipart::Form::new()
+    let pos = overlay.inner_position().map_err(|e| e.to_string())?;
+    let size = overlay.inner_size().map_err(|e| e.to_string())?;
+
+    // Calculate screen region to capture
+    let (cap_x, cap_y, cap_w, cap_h) =
+        if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (zone_x1, zone_y1, zone_x2, zone_y2) {
+            // Capture just the detect zone region (zone coords are overlay percentages)
+            let ox = pos.x as f64;
+            let oy = pos.y as f64;
+            let ow = size.width as f64;
+            let oh = size.height as f64;
+
+            let zx = ox + x1 / 100.0 * ow;
+            let zy = oy + y1 / 100.0 * oh;
+            let zw = (x2 - x1) / 100.0 * ow;
+            let zh = (y2 - y1) / 100.0 * oh;
+
+            (zx as i32, zy as i32, zw.max(1.0) as u32, zh.max(1.0) as u32)
+        } else {
+            // Capture the full overlay region
+            (pos.x, pos.y, size.width, size.height)
+        };
+
+    println!(
+        "[tauri] grim capture: region {},{} {}x{}",
+        cap_x, cap_y, cap_w, cap_h
+    );
+
+    let screenshot_path = crate::portal::capture_region(cap_x, cap_y, cap_w, cap_h)?;
+
+    // Send to Phoenix — the image is already cropped to the zone,
+    // so pass zone coords for coordinate mapping back to overlay space
+    let client = reqwest::blocking::Client::new();
+    let mut form = reqwest::blocking::multipart::Form::new()
         .text("path", screenshot_path);
 
-    // Pass detect zone coordinates so the server can crop and map
     if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (zone_x1, zone_y1, zone_x2, zone_y2) {
         form = form
             .text("zone_x1", x1.to_string())
@@ -33,27 +61,14 @@ pub async fn capture_and_detect(
             .text("zone_y2", y2.to_string());
     }
 
-    // Pass overlay window inner geometry (content area, excluding title bar)
-    if let Some(overlay) = app.get_webview_window("overlay") {
-        if let (Ok(pos), Ok(size)) = (overlay.inner_position(), overlay.inner_size()) {
-            form = form
-                .text("overlay_x", pos.x.to_string())
-                .text("overlay_y", pos.y.to_string())
-                .text("overlay_w", size.width.to_string())
-                .text("overlay_h", size.height.to_string());
-        }
-    }
-
     let response = client
         .post(format!("http://localhost:4840/api/capture/{}", session_id))
         .multipart(form)
         .send()
-        .await
         .map_err(|e| format!("Failed to send capture: {}", e))?;
 
     let body: serde_json::Value = response
         .json()
-        .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     Ok(body)

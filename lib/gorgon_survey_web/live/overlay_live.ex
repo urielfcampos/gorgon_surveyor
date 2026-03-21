@@ -24,7 +24,8 @@ defmodule GorgonSurveyWeb.OverlayLive do
        app_state: app_state,
        placing_survey: nil,
        detect_zone: nil,
-       inv_zone: nil
+       inv_zone: nil,
+       interactive: false
      ), layout: {GorgonSurveyWeb.Layouts, :overlay_root}}
   end
 
@@ -41,6 +42,18 @@ defmodule GorgonSurveyWeb.OverlayLive do
   @impl true
   def handle_info({:start_set_zone, zone_type}, socket) do
     {:noreply, push_event(socket, "start_set_zone", %{zone_type: zone_type})}
+  end
+
+  @impl true
+  def handle_event("toggle_interact", _params, socket) do
+    interactive = !socket.assigns.interactive
+
+    socket =
+      socket
+      |> assign(interactive: interactive)
+      |> push_event("set_interactive", %{interactive: interactive})
+
+    {:noreply, socket}
   end
 
   @impl true

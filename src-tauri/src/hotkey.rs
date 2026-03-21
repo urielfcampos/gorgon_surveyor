@@ -17,12 +17,19 @@ pub fn register_default_hotkey(app: &AppHandle) -> Result<(), String> {
                         OVERLAY_CLICK_THROUGH.load(std::sync::atomic::Ordering::SeqCst);
                     let new_click_through = !was_click_through;
 
-                    let _ = overlay.set_ignore_cursor_events(new_click_through);
+                    let result = overlay.set_ignore_cursor_events(new_click_through);
+                    println!(
+                        "[tauri] F12 pressed: click_through={} -> {}, result={:?}",
+                        was_click_through, new_click_through, result
+                    );
+
                     OVERLAY_CLICK_THROUGH
                         .store(new_click_through, std::sync::atomic::Ordering::SeqCst);
 
                     let interactive = !new_click_through;
                     let _ = overlay.emit("interaction_toggled", interactive);
+                } else {
+                    println!("[tauri] F12 pressed but no overlay window found");
                 }
             }
         })

@@ -48,7 +48,13 @@ const OverlayCanvas = {
       this._draw();
     });
 
+    this.handleEvent("set_interactive", (data) => {
+      this.canvas.style.pointerEvents = data.interactive ? "auto" : "none";
+    });
+
     this.handleEvent("start_set_zone", (data) => {
+      // Auto-enable interaction when zone setting starts
+      this.canvas.style.pointerEvents = "auto";
       this.settingZone = data.zone_type; // "map" or "inv"
       this.zoneCorner1 = null;
       this.canvas.style.cursor = "crosshair";

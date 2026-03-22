@@ -68,14 +68,52 @@ mise exec -- mix compile --warnings-as-errors
 mise exec -- mix precommit
 ```
 
+## Desktop App (Tauri)
+
+The project includes a Tauri v2 desktop wrapper that runs the Phoenix server as a sidecar process. It provides two windows: a sidebar control panel and a transparent click-through overlay. Requires X11 (Wayland does not support the overlay features).
+
+### Additional Prerequisites
+
+- [Rust](https://rustup.rs/) -- needed for Tauri and target-triple detection
+- Tauri v2 system dependencies (on Arch: `webkit2gtk-4.1`, `libappindicator-gtk3`, etc. -- see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
+
+### Development
+
+```bash
+# Install JS dependencies (first time)
+npm install
+
+# Run in dev mode (starts Phoenix + Tauri with hot-reload)
+npx tauri dev
+```
+
+### Production Build
+
+```bash
+# 1. Build the Phoenix release sidecar
+./scripts/build-desktop.sh
+
+# 2. Build the Tauri desktop app
+npm run tauri build
+```
+
+The build script compiles a Mix release named `desktop`, then creates a wrapper script at `src-tauri/binaries/phoenix-server-<target-triple>` that Tauri bundles as a sidecar. The Phoenix server runs on port 4840 in desktop mode.
+
+If you change templates or assets, do a clean rebuild:
+
+```bash
+rm -rf _build/prod && ./scripts/build-desktop.sh
+```
+
 ## Architecture
 
 ### Data Flow
 
 ```
 chat.log --> FileSystem watcher --> LogWatcher GenServer --> LogParser (regex)
-  --> AppState (pure struct) --> PubSub ("game_state")
-  --> SurveyLive LiveView --> push_event --> ScreenCapture JS Hook --> canvas
+  --> AppState.Server --> AppState (pure struct)
+  --> PubSub ("game_state") --> SurveyLive / OverlayLive
+  --> push_event --> JS Hooks --> canvas
 ```
 
 ### Key Modules
@@ -83,10 +121,10 @@ chat.log --> FileSystem watcher --> LogWatcher GenServer --> LogParser (regex)
 | Module | Responsibility |
 |--------|----------------|
 | `GorgonSurvey.LogParser` | Regex parsing of chat log lines into structured events |
-| `GorgonSurvey.AppState` | Pure state struct for survey/motherlode management (no side effects) |
-| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, maintains AppState, broadcasts via scoped PubSub |
-| `GorgonSurvey.SessionManager` | Tracks active sessions, manages per-session LogWatcher lifecycle, config overrides, cleanup timers |
-| `GorgonSurvey.ConfigStore` | JSON config persistence with session-aware get/put |
+| `GorgonSurvey.AppState` | Pure state struct and functions for survey/motherlode management |
+| `GorgonSurvey.AppState.Server` | GenServer wrapping AppState — holds state, handles mutations, broadcasts via PubSub |
+| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, forwards parsed events to AppState.Server |
+| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json` |
 | `GorgonSurvey.SurveyDetector` | Image processing via Vix/libvips -- red circle detection |
 | `GorgonSurveyWeb.SurveyLive` | LiveView page -- sidebar controls, screen capture, per-session state |
 | `ScreenCapture` (JS Hook) | Browser getDisplayMedia, canvas overlay, click-to-place, frame capture, route visualization |
@@ -98,10 +136,9 @@ Application Supervisor (one_for_one)
 +-- Telemetry
 +-- DNSCluster (conditional)
 +-- Phoenix.PubSub
-+-- Registry (SessionRegistry)
-+-- SessionManager
-+-- SessionSupervisor (DynamicSupervisor)
-|   +-- LogWatcher (per session)
++-- AppState.Server
++-- WatcherSupervisor (DynamicSupervisor)
+|   +-- LogWatcher
 +-- Endpoint
 ```
 

@@ -1,8 +1,28 @@
 defmodule GorgonSurvey.Trilateration do
   @moduledoc """
   Least-squares trilateration from distance readings.
-  Assumes a fixed overhead map where screen percentages have a linear
-  relationship to game-world distances.
+
+  Estimates the location of a motherlode on the game map given 3 or more
+  distance readings. Each reading is a point on the map (in screen percentage
+  coordinates) paired with a distance in meters reported by the game.
+
+  ## Algorithm
+
+  1. **Initial guess** — the centroid of all reading positions.
+  2. **Scale estimation** — infers a conversion factor between screen-percentage
+     units and game meters by averaging the ratio of reported meters to screen
+     distance from the centroid across all readings.
+  3. **Gradient descent** — iteratively minimizes the sum of squared errors
+     between predicted distances (screen distance * scale) and reported meters.
+     Updates the estimated position (x, y) and the scale factor simultaneously.
+  4. **Convergence** — stops when position changes fall below a threshold
+     (`1.0e-8`) or after 1000 iterations.
+
+  ## Assumptions
+
+  The game map is a fixed overhead view where screen percentages have a roughly
+  linear relationship to game-world distances. This holds well for the minimap
+  but may degrade at extreme zoom levels or near map edges.
   """
 
   @max_iterations 1000

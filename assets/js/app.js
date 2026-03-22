@@ -24,11 +24,10 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/gorgon_survey"
 import ScreenCapture from "./hooks/screen_capture"
-import LogStreamer from "./hooks/log_streamer"
 import OverlayCanvas from "./hooks/overlay_canvas"
 import topbar from "../vendor/topbar"
 
-const Hooks = { ...colocatedHooks, ScreenCapture, LogStreamer, OverlayCanvas }
+const Hooks = { ...colocatedHooks, ScreenCapture, OverlayCanvas }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -44,12 +43,11 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // Handle Tauri commands from LiveView events
 window.addEventListener("phx:select_game_window", async (e) => {
-  const sessionId = e.detail && e.detail.session_id || "default"
   if (window.__TAURI__) {
     try {
       const { invoke } = window.__TAURI__.core
-      await invoke("create_overlay_window", { sessionId })
-      console.log("[tauri] Overlay window created for session:", sessionId)
+      await invoke("create_overlay_window")
+      console.log("[tauri] Overlay window created")
     } catch (err) {
       console.error("[tauri] Failed to create overlay:", err)
       alert("Failed to create overlay window: " + err)
@@ -64,7 +62,7 @@ window.addEventListener("phx:trigger_capture", async (e) => {
     try {
       const { invoke } = window.__TAURI__.core
       const detail = e.detail || {}
-      const params = { sessionId: detail.session_id || "default" }
+      const params = {}
 
       // Pass detect zone if available
       if (detail.detect_zone) {

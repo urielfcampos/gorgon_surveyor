@@ -37,14 +37,15 @@ npx tauri dev
 
 ## Architecture
 
-Phoenix LiveView game companion for Project Gorgon with Tauri v2 desktop wrapper. Two LiveView pages: sidebar at `/` and transparent overlay at `/overlay`. No database. Multi-session: each browser tab/overlay gets its own isolated session with independent LogWatcher and state.
+Phoenix LiveView game companion for Project Gorgon with Tauri v2 desktop wrapper. Two LiveView pages: sidebar at `/` and transparent overlay at `/overlay`. No database. Single-user: one shared AppState.Server process, no session isolation.
 
 ### Data Flow
 
 ```
-chat.log → FileSystem watcher → LogWatcher GenServer (per session) → LogParser (regex)
-  → AppState (pure struct) → PubSub ("game_state:#{session_id}")
-  → SurveyLive/OverlayLive LiveView → push_event → JS Hooks → canvas
+chat.log → FileSystem watcher → LogWatcher GenServer → LogParser (regex)
+  → AppState.Server GenServer → AppState (pure struct)
+  → PubSub ("game_state")
+  → SurveyLive / OverlayLive → push_event → JS Hooks → canvas
 
 Tauri Commands: capture_and_detect, create_overlay_window, toggle_overlay_interaction,
   set_collect_hotkey, register_hotkeys
@@ -55,18 +56,17 @@ Tauri Commands: capture_and_detect, create_overlay_window, toggle_overlay_intera
 | Module | Responsibility |
 |---|---|
 | `GorgonSurvey.LogParser` | Regex parsing of chat log lines into structured events (surveys, motherlode readings) |
-| `GorgonSurvey.AppState` | Pure state struct — survey/motherlode management, no side effects |
-| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem (local) or WebSocket ingestion (remote), maintains AppState, broadcasts via scoped PubSub |
-| `GorgonSurvey.SessionManager` | Tracks active sessions, manages per-session LogWatcher lifecycle, config overrides, 30s cleanup timers |
-| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json`, global and session-aware get/put |
-| `GorgonSurvey.SurveyDetector` | Image processing via Vix/VIPS — red circle detection + player triangle detection |
+| `GorgonSurvey.AppState` | Pure state struct and functions for survey/motherlode management, no side effects |
+| `GorgonSurvey.AppState.Server` | GenServer wrapping AppState — holds state, handles mutations, broadcasts via PubSub |
+| `GorgonSurvey.LogWatcher` | GenServer tailing log file via FileSystem, forwards parsed events to AppState.Server |
+| `GorgonSurvey.ConfigStore` | JSON config persistence at `~/.config/gorgon-survey/settings.json` |
+| `GorgonSurvey.SurveyDetector` | Image processing via Vix/VIPS — red circle detection |
 | `GorgonSurvey.Trilateration` | Least-squares trilateration from 3+ motherlode distance readings via gradient descent |
 | `GorgonSurveyWeb.SurveyLive` | Main sidebar LiveView — log folder, auto-detect toggle, zone setup, survey/motherlode management |
 | `GorgonSurveyWeb.OverlayLive` | Transparent overlay LiveView — receives state updates, renders markers/zones on fullscreen canvas |
-| `GorgonSurveyWeb.CaptureController` | HTTP POST `/api/capture/:session_id` — receives screenshot, crops to zone, detects and places surveys |
+| `GorgonSurveyWeb.CaptureController` | HTTP POST `/api/capture` — receives screenshot, crops to zone, detects and places surveys |
 | `ScreenCapture` (JS Hook) | Browser getDisplayMedia, canvas overlay, click-to-place, zone drawing, route visualization |
 | `OverlayCanvas` (JS Hook) | Fullscreen transparent canvas for overlay window — renders surveys, motherlode, routes, zones |
-| `LogStreamer` (JS Hook) | Remote log ingestion over WebSocket for non-desktop deployments |
 
 ### Supervision Tree
 
@@ -75,10 +75,9 @@ Application Supervisor (one_for_one)
 ├── Telemetry
 ├── DNSCluster (conditional)
 ├── Phoenix.PubSub
-├── Registry (SessionRegistry, keys: :unique)
-├── SessionManager
-├── SessionSupervisor (DynamicSupervisor)
-│   └── LogWatcher (per session)
+├── AppState.Server
+├── WatcherSupervisor (DynamicSupervisor)
+│   └── LogWatcher
 └── Endpoint (Bandit adapter)
 ```
 
@@ -90,7 +89,7 @@ Browser:
   GET  /overlay       → OverlayLive (transparent overlay)
 
 API:
-  POST /api/capture/:session_id  → CaptureController.create
+  POST /api/capture   → CaptureController.create
 
 Dev only:
   GET  /dev/dashboard → LiveDashboard
@@ -120,7 +119,6 @@ Dev only:
 ### SurveyDetector Image Processing
 
 - **detect/1** — Red circle detection (R>150, G<80, B<80), proximity clustering, returns centroids as percentage coordinates
-- **detect_player/1** — Player triangle detection (near-white clusters), returns smallest cluster centroid
 
 ### Tauri Desktop Integration (src-tauri/)
 
@@ -130,8 +128,3 @@ Dev only:
 - Global hotkeys: F12 toggles overlay interactivity, F11/custom triggers collection at cursor
 - Commands: `capture_and_detect`, `create_overlay_window`, `toggle_overlay_interaction`, `set_overlay_geometry`, `refresh_overlay`, `set_collect_hotkey`
 - On shutdown, gracefully stops BEAM VM via release stop command
-
-### LogWatcher Modes
-
-- **:local** — FileSystem watcher tails `ChatLog.txt` in configured log folder
-- **:remote** — WebSocket ingestion via LogStreamer hook for non-local deployments

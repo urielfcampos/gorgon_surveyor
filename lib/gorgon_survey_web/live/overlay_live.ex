@@ -1,28 +1,53 @@
 defmodule GorgonSurveyWeb.OverlayLive do
+  @moduledoc """
+  LiveView for the transparent overlay window at `/overlay`.
+
+  Renders a transparent page that the Tauri desktop wrapper displays as an
+  always-on-top, click-through window over the game. The overlay's JS hooks
+  (`OverlayCanvas`) draw survey markers, route lines, and zone rectangles on
+  a canvas that visually sits on top of the game minimap.
+
+  ## Responsibilities
+
+  - **State mirroring** — subscribes to `"game_state"` PubSub and pushes
+    serialized state to the JS canvas hook via `push_event("state_updated", ...)`.
+  - **Zone drawing** — receives zone setup/clear commands from `SurveyLive` via
+    the `"overlay"` PubSub topic and forwards them to JS for rendering.
+  - **User interaction** — when in interactive mode (toggled via F12 hotkey),
+    handles click events for placing surveys, collecting surveys, and defining
+    detection/inventory zones. These mutations are sent to `AppState.Server`.
+  - **Zone broadcasting** — when the user defines a zone on the overlay, broadcasts
+    it back to `SurveyLive` via `"overlay:zones"` so the sidebar UI reflects it.
+
+  ## PubSub topics
+
+  - Subscribes to `"game_state"` — state updates from `AppState.Server`.
+  - Subscribes to `"overlay"` — commands from `SurveyLive` (start_set_zone, clear_zone).
+  - Subscribes to `"overlay:zones"` — zone updates (bidirectional with `SurveyLive`).
+
+  ## Layout
+
+  Uses the `:overlay_root` layout which provides a minimal transparent HTML shell
+  without the standard app chrome.
+  """
+
   use GorgonSurveyWeb, :live_view
 
-  alias GorgonSurvey.LogWatcher
+  alias GorgonSurvey.AppState
   require Logger
 
   @impl true
-  def mount(params, _session, socket) do
-    session_id = params["session_id"] || "default"
-
+  def mount(_params, _session, socket) do
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state:#{session_id}")
-      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:#{session_id}")
-      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:#{session_id}:zones")
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "game_state")
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay")
+      Phoenix.PubSub.subscribe(GorgonSurvey.PubSub, "overlay:zones")
     end
 
-    app_state =
-      case GorgonSurvey.SessionManager.get_watcher(session_id) do
-        {:ok, pid} -> LogWatcher.get_state(pid)
-        _ -> GorgonSurvey.AppState.new()
-      end
+    app_state = AppState.Server.get_state()
 
     {:ok,
      assign(socket,
-       session_id: session_id,
        app_state: app_state,
        placing_survey: nil,
        detect_zone: nil,
@@ -111,11 +136,7 @@ defmodule GorgonSurveyWeb.OverlayLive do
       |> push_event("zones_updated", %{detect_zone: zone, inv_zone: socket.assigns[:inv_zone]})
 
     # Broadcast zone to SurveyLive so sidebar reflects it
-    Phoenix.PubSub.broadcast(
-      GorgonSurvey.PubSub,
-      "overlay:#{socket.assigns.session_id}:zones",
-      {:zone_set, :detect, zone}
-    )
+    Phoenix.PubSub.broadcast(GorgonSurvey.PubSub, "overlay:zones", {:zone_set, :detect, zone})
 
     {:noreply, socket}
   end
@@ -129,82 +150,66 @@ defmodule GorgonSurveyWeb.OverlayLive do
       |> assign(inv_zone: zone)
       |> push_event("zones_updated", %{detect_zone: socket.assigns[:detect_zone], inv_zone: zone})
 
-    Phoenix.PubSub.broadcast(
-      GorgonSurvey.PubSub,
-      "overlay:#{socket.assigns.session_id}:zones",
-      {:zone_set, :inv, zone}
-    )
+    Phoenix.PubSub.broadcast(GorgonSurvey.PubSub, "overlay:zones", {:zone_set, :inv, zone})
 
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("place_survey", %{"id" => id, "x_pct" => x, "y_pct" => y}, socket) do
-    case GorgonSurvey.SessionManager.get_watcher(socket.assigns.session_id) do
-      {:ok, pid} -> LogWatcher.place_survey(pid, id, x, y)
-      _ -> :ok
-    end
-
+    AppState.Server.place_survey(id, x, y)
     {:noreply, assign(socket, placing_survey: nil)}
   end
 
   @impl true
   def handle_event("place_and_collect", %{"id" => id, "x_pct" => x, "y_pct" => y}, socket) do
-    id = if is_binary(id), do: String.to_integer(id), else: id
-
-    case GorgonSurvey.SessionManager.get_watcher(socket.assigns.session_id) do
-      {:ok, pid} ->
-        LogWatcher.place_survey(pid, id, x, y)
-        LogWatcher.toggle_collected(pid, id)
-
-      _ ->
-        :ok
-    end
-
+    id = parse_id(id)
+    AppState.Server.place_survey(id, x, y)
+    AppState.Server.toggle_collected(id)
     {:noreply, assign(socket, placing_survey: nil)}
   end
 
   @impl true
   def handle_event("toggle_collected", %{"id" => id}, socket) do
-    id = if is_binary(id), do: String.to_integer(id), else: id
-
-    case GorgonSurvey.SessionManager.get_watcher(socket.assigns.session_id) do
-      {:ok, pid} -> LogWatcher.toggle_collected(pid, id)
-      _ -> :ok
-    end
-
+    AppState.Server.toggle_collected(parse_id(id))
     {:noreply, socket}
   end
 
+  defp parse_id(id) when is_binary(id), do: String.to_integer(id)
+  defp parse_id(id) when is_integer(id), do: id
+
   defp serialize_state(socket, app_state) do
+    surveys = Enum.map(app_state.surveys, &serialize_survey/1)
+    readings = Enum.map(app_state.motherlode.readings, &serialize_reading/1)
+    estimated_location = serialize_location(app_state.motherlode.estimated_location)
+
     %{
       mode: :survey,
-      surveys:
-        Enum.map(app_state.surveys, fn s ->
-          %{
-            id: s.id,
-            survey_number: s.survey_number,
-            name: s.name,
-            dx: s.dx,
-            dy: s.dy,
-            x_pct: s.x_pct,
-            y_pct: s.y_pct,
-            collected: s.collected
-          }
-        end),
+      surveys: surveys,
       placing_survey: socket.assigns.placing_survey,
       motherlode: %{
-        readings:
-          Enum.map(app_state.motherlode.readings, fn r ->
-            %{x_pct: r.x_pct, y_pct: r.y_pct, meters: r.meters}
-          end),
+        readings: readings,
         pending_meters: app_state.motherlode.pending_meters,
-        estimated_location:
-          case app_state.motherlode.estimated_location do
-            {x, y} -> %{x_pct: x, y_pct: y}
-            nil -> nil
-          end
+        estimated_location: estimated_location
       }
     }
   end
+
+  defp serialize_survey(s) do
+    %{
+      id: s.id,
+      survey_number: s.survey_number,
+      name: s.name,
+      dx: s.dx,
+      dy: s.dy,
+      x_pct: s.x_pct,
+      y_pct: s.y_pct,
+      collected: s.collected
+    }
+  end
+
+  defp serialize_reading(r), do: %{x_pct: r.x_pct, y_pct: r.y_pct, meters: r.meters}
+
+  defp serialize_location({x, y}), do: %{x_pct: x, y_pct: y}
+  defp serialize_location(nil), do: nil
 end

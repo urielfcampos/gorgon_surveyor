@@ -1,5 +1,37 @@
 defmodule GorgonSurvey.AppState do
-  @moduledoc "Pure data structure and functions for application state."
+  @moduledoc """
+  Pure data structure and functions for application state.
+
+  This module defines the `%AppState{}` struct and pure transformation functions
+  that operate on it. It has no side effects — no GenServer, no PubSub, no I/O.
+  The stateful wrapper is `AppState.Server`.
+
+  ## State structure
+
+  - `surveys` — ordered list of survey maps, each with an auto-incrementing `id`,
+    a display `survey_number`, the parsed `name`, directional offsets (`dx`, `dy`),
+    optional map coordinates (`x_pct`, `y_pct` as percentages), and a `collected` flag.
+  - `motherlode` — map tracking motherlode triangulation: `readings` (list of
+    `%{x_pct, y_pct, meters}`), `pending_meters` (distance from the latest log line
+    awaiting a map click), and `estimated_location` (computed after 3+ readings via
+    `Trilateration.estimate/1`).
+  - `next_id` / `next_number` — auto-incrementing counters for survey identity.
+
+  ## Survey lifecycle
+
+  1. `add_survey/2` — a new survey is parsed from the chat log. Coordinates are nil
+     until the user clicks the map or auto-detect places them.
+  2. `place_survey/4` — sets `x_pct`/`y_pct` on a survey by id.
+  3. `toggle_collected/2` — marks a survey as collected (or undoes it).
+  4. `delete_survey/2` / `clear_surveys/1` — removal.
+
+  ## Motherlode lifecycle
+
+  1. `add_pending_motherlode/2` — stores a distance reading from the log.
+  2. `complete_motherlode_reading/3` — user clicks the map to associate the pending
+     distance with a position. After 3+ readings, triggers trilateration.
+  3. `delete_motherlode_reading/2` / `clear_motherlode/1` — removal.
+  """
 
   defstruct surveys: [],
             motherlode: %{readings: [], estimated_location: nil, pending_meters: nil},

@@ -1,5 +1,25 @@
 defmodule GorgonSurvey.LogParser do
-  @moduledoc "Parses Project Gorgon chat log lines into structured events."
+  @moduledoc """
+  Parses Project Gorgon chat log lines into structured events.
+
+  The game writes survey and motherlode events to `chat.log` in plain text.
+  This module uses regex patterns to recognize three kinds of lines:
+
+  ## Recognized patterns
+
+  - **Survey directions** — `"The Good Metal Slab is 815m west and 1441m north."`
+    Parsed into `{:survey, %{name: "Good Metal Slab", dx: -815, dy: 1441}}`.
+    Directions are converted to signed offsets: east/north are positive,
+    west/south are negative.
+
+  - **Motherlode distance** — `"The treasure is 500 meters away"`
+    Parsed into `{:motherlode, %{meters: 500}}`.
+
+  - **Survey collected** — `"You collected the survey reward"`
+    Returns `:survey_collected` (currently unused but recognized).
+
+  All other lines return `nil`.
+  """
 
   @survey_regex ~r/The (.+?) is (\d+)m (east|west) and (\d+)m (north|south)\./
   @motherlode_regex ~r/The treasure is (\d+) meters away/

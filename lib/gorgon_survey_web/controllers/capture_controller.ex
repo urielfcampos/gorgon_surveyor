@@ -1,63 +1,74 @@
 defmodule GorgonSurveyWeb.CaptureController do
+  @moduledoc """
+  API endpoint for screenshot-based survey auto-detection.
+
+  Called by the Tauri sidecar at `POST /api/capture` with either a file upload
+  or a filesystem path to a screenshot. The pipeline:
+
+  1. **Extract image** — reads the PNG from the uploaded file or path.
+  2. **Crop to zone** — if detection zone and overlay geometry are provided,
+     crops the full-monitor screenshot down to just the minimap region. Zone
+     coordinates are percentages of the overlay window; overlay geometry gives
+     the overlay's position and size on screen in pixels.
+  3. **Detect circles** — passes the (possibly cropped) image to `SurveyDetector`
+     which returns percentage coordinates of detected red circles.
+  4. **Map to overlay space** — converts zone-relative detection coordinates back
+     to overlay-relative percentages.
+  5. **Place surveys** — pairs detected circles with unplaced surveys (those
+     without coordinates) in order, and calls `AppState.Server.place_survey/3`
+     for each match.
+
+  ## Parameters
+
+  - `file` — multipart file upload (PNG screenshot)
+  - `path` — alternative: filesystem path to a screenshot (used by Tauri sidecar)
+  - `zone_x1`, `zone_y1`, `zone_x2`, `zone_y2` — detection zone as overlay percentages
+  - `overlay_x`, `overlay_y`, `overlay_w`, `overlay_h` — overlay window geometry in pixels
+  """
+
   use GorgonSurveyWeb, :controller
 
-  alias GorgonSurvey.LogWatcher
+  alias GorgonSurvey.AppState
 
   require Logger
 
-  def create(conn, %{"session_id" => session_id} = params) do
+  def create(conn, params) do
     Logger.info("capture params: #{inspect(Map.keys(params))}")
-    watcher = {:via, Registry, {GorgonSurvey.SessionRegistry, {:session, session_id}}}
 
-    png_binary =
-      cond do
-        upload = params["file"] ->
-          File.read!(upload.path)
-
-        path = params["path"] ->
-          File.read!(path)
-
-        true ->
-          nil
-      end
-
-    if is_nil(png_binary) do
-      conn
-      |> put_status(400)
-      |> json(%{error: "No file or path provided"})
+    with {:ok, png_binary} <- extract_image(params),
+         zone = parse_zone(params),
+         overlay = parse_overlay_geometry(params),
+         cropped = crop_to_zone(png_binary, zone, overlay),
+         {:ok, circles} <- GorgonSurvey.SurveyDetector.detect(cropped) do
+      circles = Enum.map(circles, &map_to_overlay(&1, zone))
+      place_detected_surveys(circles)
+      json(conn, %{ok: true, detected: length(circles)})
     else
-      zone = parse_zone(params)
-      overlay = parse_overlay_geometry(params)
+      :no_image ->
+        conn |> put_status(400) |> json(%{error: "No file or path provided"})
 
-      # Crop the monitor screenshot to the detect zone's screen region
-      png_binary = crop_to_zone(png_binary, zone, overlay)
-
-      case GorgonSurvey.SurveyDetector.detect(png_binary) do
-        {:ok, circles} ->
-          # Detected coords are zone-relative percentages — map to overlay space
-          circles = Enum.map(circles, &map_to_overlay(&1, zone))
-
-          app_state = LogWatcher.get_state(watcher)
-          unplaced = Enum.filter(app_state.surveys, &is_nil(&1.x_pct))
-
-          Logger.info(
-            "capture: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys"
-          )
-
-          Enum.zip(unplaced, circles)
-          |> Enum.each(fn {survey, {x_pct, y_pct}} ->
-            Logger.info("capture: placing survey #{survey.id} at (#{x_pct}, #{y_pct})")
-            LogWatcher.place_survey(watcher, survey.id, x_pct, y_pct)
-          end)
-
-          json(conn, %{ok: true, detected: length(circles)})
-
-        {:error, reason} ->
-          conn
-          |> put_status(422)
-          |> json(%{ok: false, error: inspect(reason)})
-      end
+      {:error, reason} ->
+        conn |> put_status(422) |> json(%{ok: false, error: inspect(reason)})
     end
+  end
+
+  defp extract_image(%{"file" => upload}), do: {:ok, File.read!(upload.path)}
+  defp extract_image(%{"path" => path}), do: {:ok, File.read!(path)}
+  defp extract_image(_), do: :no_image
+
+  defp place_detected_surveys(circles) do
+    app_state = AppState.Server.get_state()
+    unplaced = Enum.filter(app_state.surveys, &is_nil(&1.x_pct))
+
+    Logger.info(
+      "capture: detected #{length(circles)} circles, #{length(unplaced)} unplaced surveys"
+    )
+
+    Enum.zip(unplaced, circles)
+    |> Enum.each(fn {survey, {x_pct, y_pct}} ->
+      Logger.info("capture: placing survey #{survey.id} at (#{x_pct}, #{y_pct})")
+      AppState.Server.place_survey(survey.id, x_pct, y_pct)
+    end)
   end
 
   defp parse_zone(%{"zone_x1" => x1, "zone_y1" => y1, "zone_x2" => x2, "zone_y2" => y2}) do

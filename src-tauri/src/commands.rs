@@ -65,7 +65,6 @@ pub fn emit_collect_at_cursor(app: &tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn capture_and_detect(
     app: tauri::AppHandle,
-    session_id: String,
     zone_x1: Option<f64>,
     zone_y1: Option<f64>,
     zone_x2: Option<f64>,
@@ -124,7 +123,7 @@ pub fn capture_and_detect(
         .text("overlay_h", size.height.to_string());
 
     let response = client
-        .post(format!("http://localhost:4840/api/capture/{}", session_id))
+        .post("http://localhost:4840/api/capture")
         .multipart(form)
         .send()
         .map_err(|e| format!("Failed to send capture: {}", e))?;
@@ -137,14 +136,13 @@ pub fn capture_and_detect(
 }
 
 #[tauri::command]
-pub fn create_overlay_window(app: tauri::AppHandle, session_id: String) -> Result<(), String> {
+pub fn create_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(overlay) = app.get_webview_window("overlay") {
         overlay.show().map_err(|e| e.to_string())?;
         return Ok(());
     }
 
-    let url_str = format!("http://localhost:4840/overlay?session_id={}", session_id);
-    let url = WebviewUrl::External(url_str.parse().unwrap());
+    let url = WebviewUrl::External("http://localhost:4840/overlay".parse().unwrap());
 
     let overlay = WebviewWindowBuilder::new(&app, "overlay", url)
         .title("Overlay — F12 to interact")

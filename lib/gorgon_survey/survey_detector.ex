@@ -1,23 +1,50 @@
 defmodule GorgonSurvey.SurveyDetector do
-  @moduledoc "Detects red circle survey markers and player triangle in game screenshots."
+  @moduledoc """
+  Detects red circle survey markers in game screenshots.
+
+  ## How it works
+
+  Survey markers in Project Gorgon appear as small red circles on the minimap.
+  Detection is a three-stage pipeline:
+
+  1. **Color thresholding** — Split the image into RGB bands and build a binary
+     mask of pixels that are "red enough" (R > 150, G < 80, B < 80). This
+     isolates survey markers from the rest of the minimap.
+
+  2. **Clustering** — Group nearby red pixels into clusters using a simple
+     proximity-based algorithm: each pixel is added to the nearest existing
+     cluster (within @cluster_distance px of its centroid), or starts a new
+     cluster. Tiny noise clusters (< 4 px) are discarded.
+
+  3. **Filtering & output** — Keep only clusters that look like circles:
+     between @min_cluster_pixels and @max_cluster_pixels, with a bounding-box
+     aspect ratio under @max_aspect_ratio. Return the bounding-box center of
+     each surviving cluster as percentage coordinates, sorted roughly
+     left-to-right, top-to-bottom.
+  """
 
   use Image.Math
 
-  # Red circle detection
+  require Logger
+
+  # Color thresholds for the red channel mask.
+  # Pixels must have R above min AND G/B below max to qualify.
   @red_min 150
   @green_max 80
   @blue_max 80
+
+  # Max distance (px) from a cluster's centroid for a pixel to join it.
   @cluster_distance 30
+
+  # Cluster size bounds — filters out noise (too small) and large red UI
+  # elements (too big) that aren't survey markers.
   @min_cluster_pixels 10
   @max_cluster_pixels 500
+
+  # Bounding-box aspect ratio limit — rejects elongated shapes (lines, bars)
+  # that pass the size filter but aren't circular markers.
   @max_aspect_ratio 3.0
 
-  # Player triangle detection — bright near-white pixels (all channels high and close)
-  @player_brightness_min 200
-  @player_channel_spread 40
-  @player_min_pixels 5
-  @player_max_pixels 200
-  @player_cluster_distance 15
   @doc """
   Detects red circles in an image binary.
   Returns {:ok, [{x_pct, y_pct}, ...]} sorted left-to-right, top-to-bottom.
@@ -28,16 +55,21 @@ defmodule GorgonSurvey.SurveyDetector do
       width = Image.width(img)
       height = Image.height(img)
 
+      # Stage 1: Build a binary mask of red pixels by thresholding each channel.
+      # The &&& operator is a band-wise AND from Image.Math (not Bitwise).
       [r, g, b | _] = Image.split_bands(img)
       mask = r > @red_min &&& g < @green_max &&& b < @blue_max
 
+      # Convert the mask image to a raw tensor so we can iterate over pixels.
       {:ok, tensor} = Vix.Vips.Image.write_to_tensor(mask)
       {h, w, _bands} = tensor.shape
 
+      # Extract {x, y} coordinates of all non-zero (red) pixels.
       coords = red_pixel_coords(tensor.data, w, h)
+
+      # Stage 2: Group red pixels into clusters by proximity.
       raw_clusters = cluster_raw(coords)
 
-      require Logger
       Logger.info("[detect] #{length(coords)} red pixels, #{length(raw_clusters)} raw clusters")
 
       for c <- raw_clusters do
@@ -52,6 +84,7 @@ defmodule GorgonSurvey.SurveyDetector do
         )
       end
 
+      # Stage 3: Filter clusters by size and shape (must be roughly circular).
       clusters =
         raw_clusters
         |> Enum.filter(fn cluster ->
@@ -61,6 +94,8 @@ defmodule GorgonSurvey.SurveyDetector do
 
       Logger.info("[detect] #{length(clusters)} clusters after filtering")
 
+      # Convert cluster centers to percentage coordinates and sort by row then column.
+      # Rows are bucketed into bands of 10% height to get a stable left-to-right order.
       centroids =
         clusters
         |> Enum.map(fn cluster ->
@@ -73,73 +108,8 @@ defmodule GorgonSurvey.SurveyDetector do
     end
   end
 
-  @doc """
-  Detects the player triangle (bright near-white) in an image binary.
-  Returns {:ok, {x_pct, y_pct}} or {:ok, nil} if not found.
-  """
-  def detect_player(png_binary) do
-    with {:ok, img} <- Image.from_binary(png_binary) do
-      width = Image.width(img)
-      height = Image.height(img)
-
-      [r, g, b | _] = Image.split_bands(img)
-
-      # All channels must be bright and close together (near-white, low saturation)
-      bright =
-        r > @player_brightness_min &&& g > @player_brightness_min &&& b > @player_brightness_min
-
-      # Check pairwise channel differences are small
-      rg_close = Vix.Vips.Operation.abs!(r - g) < @player_channel_spread
-      rb_close = Vix.Vips.Operation.abs!(r - b) < @player_channel_spread
-      gb_close = Vix.Vips.Operation.abs!(g - b) < @player_channel_spread
-      mask = bright &&& rg_close &&& rb_close &&& gb_close
-
-      {:ok, tensor} = Vix.Vips.Image.write_to_tensor(mask)
-      {_h, w, _bands} = tensor.shape
-
-      coords = mask_pixel_coords(tensor.data, w)
-
-      clusters =
-        cluster_with_distance(coords, @player_cluster_distance)
-        |> Enum.filter(fn cluster ->
-          n = length(cluster)
-          n >= @player_min_pixels and n <= @player_max_pixels and circular?(cluster)
-        end)
-
-      require Logger
-      Logger.info("[detect_player] #{length(coords)} bright pixels, #{length(clusters)} clusters")
-
-      for c <- clusters do
-        n = length(c)
-        {cx, cy} = bbox_center(c)
-        Logger.info("[detect_player] cluster: #{n}px, center=(#{round(cx)},#{round(cy)})")
-      end
-
-      # Pick the smallest matching cluster (player triangle is small and isolated)
-      case Enum.sort_by(clusters, &length/1) do
-        [best | _] ->
-          {cx, cy} = bbox_center(best)
-          {:ok, {cx / width * 100, cy / height * 100}}
-
-        [] ->
-          {:ok, nil}
-      end
-    end
-  end
-
-  defp mask_pixel_coords(data, width) do
-    for <<byte <- data>>, reduce: {[], 0} do
-      {acc, idx} ->
-        if byte > 0 do
-          {[{rem(idx, width), div(idx, width)} | acc], idx + 1}
-        else
-          {acc, idx + 1}
-        end
-    end
-    |> elem(0)
-    |> Enum.reverse()
-  end
-
+  # Walks the raw mask tensor bytes and returns {x, y} for every non-zero pixel.
+  # The tensor is a flat 1D binary where each byte is one pixel (0 or 255).
   defp red_pixel_coords(data, width, _height) do
     pixels = for <<byte <- data>>, do: byte
 
@@ -153,21 +123,9 @@ defmodule GorgonSurvey.SurveyDetector do
     end)
   end
 
-  defp cluster_with_distance([], _dist), do: []
-
-  defp cluster_with_distance(coords, dist) do
-    Enum.reduce(coords, [], fn {x, y}, clusters ->
-      case Enum.find_index(clusters, fn cluster ->
-             {cx, cy} = centroid(cluster)
-             Kernel.abs(cx - x) < dist and Kernel.abs(cy - y) < dist
-           end) do
-        nil -> clusters ++ [[{x, y}]]
-        idx -> List.update_at(clusters, idx, &[{x, y} | &1])
-      end
-    end)
-    |> Enum.filter(fn cluster -> length(cluster) > 3 end)
-  end
-
+  # Groups pixel coordinates into clusters using nearest-centroid assignment.
+  # For each pixel, find the cluster whose centroid is within @cluster_distance;
+  # if none exists, start a new cluster. Clusters with <= 3 pixels are noise.
   defp cluster_raw([]), do: []
 
   defp cluster_raw(coords) do
@@ -183,6 +141,8 @@ defmodule GorgonSurvey.SurveyDetector do
     |> Enum.filter(fn cluster -> length(cluster) > 3 end)
   end
 
+  # Checks if a cluster's bounding box is roughly square (aspect ratio within limit).
+  # Survey markers are circles, so their bounding box should be close to 1:1.
   defp circular?(cluster) do
     {xs, ys} = Enum.unzip(cluster)
     w = Enum.max(xs) - Enum.min(xs) + 1
@@ -191,13 +151,16 @@ defmodule GorgonSurvey.SurveyDetector do
     ratio <= @max_aspect_ratio
   end
 
-  # Bounding box center — true geometric center for circle outlines
+  # Bounding box center — midpoint of min/max coordinates.
+  # More stable than pixel-average centroid for hollow circle outlines where
+  # pixels concentrate on the perimeter.
   defp bbox_center(points) do
     {xs, ys} = Enum.unzip(points)
     {(Enum.min(xs) + Enum.max(xs)) / 2, (Enum.min(ys) + Enum.max(ys)) / 2}
   end
 
-  # Pixel average centroid — used for clustering proximity
+  # Pixel-average centroid — mean of all pixel positions in a cluster.
+  # Used during clustering to decide which cluster a new pixel belongs to.
   defp centroid(points) do
     n = length(points)
     {sum_x, sum_y} = Enum.reduce(points, {0, 0}, fn {x, y}, {sx, sy} -> {sx + x, sy + y} end)

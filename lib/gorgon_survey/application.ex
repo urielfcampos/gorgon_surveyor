@@ -9,9 +9,8 @@ defmodule GorgonSurvey.Application do
       GorgonSurveyWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:gorgon_survey, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: GorgonSurvey.PubSub},
-      {Registry, keys: :unique, name: GorgonSurvey.SessionRegistry},
-      GorgonSurvey.SessionManager,
-      {DynamicSupervisor, name: GorgonSurvey.SessionSupervisor, strategy: :one_for_one},
+      GorgonSurvey.AppState.Server,
+      {DynamicSupervisor, name: GorgonSurvey.WatcherSupervisor, strategy: :one_for_one},
       GorgonSurveyWeb.Endpoint
     ]
 

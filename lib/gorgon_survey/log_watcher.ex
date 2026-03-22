@@ -1,5 +1,30 @@
 defmodule GorgonSurvey.LogWatcher do
-  @moduledoc "GenServer that tails the game chat log and maintains app state."
+  @moduledoc """
+  GenServer that tails the game chat log and forwards parsed events to AppState.Server.
+
+  Uses the `file_system` library (inotify on Linux) to watch the directory containing
+  the log file. When the file changes, reads only the new bytes appended since the last
+  read (tracked via `file_offset`), splits them into lines, parses each line with
+  `LogParser`, and forwards recognized events to `AppState.Server`.
+
+  ## Lifecycle
+
+  Started dynamically via `WatcherSupervisor` (a `DynamicSupervisor`) when the user
+  sets a log folder in the settings UI. Stopped when the user clears the folder or
+  the LiveView terminates.
+
+  ## Initialization
+
+  On startup, records the current file size as the initial offset so that only new
+  lines appended after the watcher starts are processed — existing log history is
+  ignored.
+
+  ## Recognized events
+
+  - `{:survey, %{name, dx, dy}}` — forwarded as `AppState.Server.add_survey/1`
+  - `{:motherlode, %{meters}}` — forwarded as `AppState.Server.add_pending_motherlode/1`
+  - All other lines (chat, system messages, etc.) are ignored.
+  """
 
   use GenServer
 
@@ -8,68 +33,14 @@ defmodule GorgonSurvey.LogWatcher do
   # Client API
 
   def start_link(opts) do
-    mode = Keyword.get(opts, :mode, :local)
-    session_id = Keyword.get(opts, :session_id, "global")
-    name = Keyword.get(opts, :name, nil)
-
-    case mode do
-      :local ->
-        log_path = Keyword.fetch!(opts, :log_path)
-        GenServer.start_link(__MODULE__, {:local, log_path, session_id}, name: name)
-
-      :remote ->
-        GenServer.start_link(__MODULE__, {:remote, session_id}, name: name)
-    end
-  end
-
-  def get_state(server) do
-    GenServer.call(server, :get_state)
-  end
-
-  def place_survey(server, id, x_pct, y_pct) do
-    GenServer.cast(server, {:place_survey, id, x_pct, y_pct})
-  end
-
-  def toggle_collected(server, id) do
-    GenServer.cast(server, {:toggle_collected, id})
-  end
-
-  def delete_survey(server, id) do
-    GenServer.cast(server, {:delete_survey, id})
-  end
-
-  def clear_surveys(server) do
-    GenServer.cast(server, :clear_surveys)
-  end
-
-  def set_zone(server, zone) do
-    GenServer.cast(server, {:set_zone, zone})
-  end
-
-  def add_pending_motherlode(server, meters) do
-    GenServer.cast(server, {:add_pending_motherlode, meters})
-  end
-
-  def complete_motherlode_reading(server, x_pct, y_pct) do
-    GenServer.cast(server, {:complete_motherlode_reading, x_pct, y_pct})
-  end
-
-  def delete_motherlode_reading(server, index) do
-    GenServer.cast(server, {:delete_motherlode_reading, index})
-  end
-
-  def clear_motherlode(server) do
-    GenServer.cast(server, :clear_motherlode)
-  end
-
-  def ingest_lines(server, content) do
-    GenServer.cast(server, {:ingest_lines, content})
+    log_path = Keyword.fetch!(opts, :log_path)
+    GenServer.start_link(__MODULE__, log_path)
   end
 
   # Server callbacks
 
   @impl true
-  def init({:local, log_path, session_id}) do
+  def init(log_path) do
     {:ok, watcher_pid} = FileSystem.start_link(dirs: [Path.dirname(log_path)])
     FileSystem.subscribe(watcher_pid)
 
@@ -81,114 +52,16 @@ defmodule GorgonSurvey.LogWatcher do
 
     {:ok,
      %{
-       mode: :local,
-       app_state: AppState.new(),
        log_path: log_path,
-       session_id: session_id,
        watcher_pid: watcher_pid,
        file_offset: file_size
      }}
   end
 
   @impl true
-  def init({:remote, session_id}) do
-    {:ok,
-     %{
-       mode: :remote,
-       app_state: AppState.new(),
-       session_id: session_id
-     }}
-  end
-
-  @impl true
-  def handle_call(:get_state, _from, state) do
-    {:reply, state.app_state, state}
-  end
-
-  @impl true
-  def handle_cast({:place_survey, id, x_pct, y_pct}, state) do
-    app_state = AppState.place_survey(state.app_state, id, x_pct, y_pct)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:toggle_collected, id}, state) do
-    app_state = AppState.toggle_collected(state.app_state, id)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:delete_survey, id}, state) do
-    app_state = AppState.delete_survey(state.app_state, id)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast(:clear_surveys, state) do
-    app_state = AppState.clear_surveys(state.app_state)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:set_zone, zone}, state) do
-    app_state = %{state.app_state | zone: zone}
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:ingest_lines, content}, %{mode: :remote} = state) do
-    app_state = process_lines(content, state.app_state)
-    broadcast(state.session_id, app_state)
-    {:noreply, %{state | app_state: app_state}}
-  end
-
-  @impl true
-  def handle_cast({:add_pending_motherlode, meters}, state) do
-    app_state = AppState.add_pending_motherlode(state.app_state, meters)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:complete_motherlode_reading, x_pct, y_pct}, state) do
-    app_state = AppState.complete_motherlode_reading(state.app_state, x_pct, y_pct)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:delete_motherlode_reading, index}, state) do
-    app_state = AppState.delete_motherlode_reading(state.app_state, index)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast(:clear_motherlode, state) do
-    app_state = AppState.clear_motherlode(state.app_state)
-    state = %{state | app_state: app_state}
-    broadcast(state.session_id, app_state)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:file_event, _pid, {path, _events}}, %{mode: :local} = state) do
+  def handle_info({:file_event, _pid, {path, _events}}, state) do
     if Path.basename(path) == Path.basename(state.log_path) do
-      state = read_new_lines(state)
-      {:noreply, state}
+      {:noreply, read_new_lines(state)}
     else
       {:noreply, state}
     end
@@ -200,49 +73,37 @@ defmodule GorgonSurvey.LogWatcher do
   end
 
   defp read_new_lines(state) do
-    case File.open(state.log_path, [:read]) do
-      {:ok, file} ->
-        :file.position(file, state.file_offset)
-        new_content = IO.read(file, :eof)
-        File.close(file)
-
-        case new_content do
-          :eof ->
-            state
-
-          content when is_binary(content) and byte_size(content) > 0 ->
-            new_offset = state.file_offset + byte_size(content)
-            app_state = process_lines(content, state.app_state)
-            broadcast(state.session_id, app_state)
-            %{state | file_offset: new_offset, app_state: app_state}
-
-          _ ->
-            state
-        end
-
-      _ ->
-        state
+    with {:ok, content} <- read_from_offset(state.log_path, state.file_offset),
+         true <- byte_size(content) > 0 do
+      forward_events(content)
+      %{state | file_offset: state.file_offset + byte_size(content)}
+    else
+      _ -> state
     end
   end
 
-  defp process_lines(content, app_state) do
-    content
-    |> String.split("\n", trim: true)
-    |> Enum.reduce(app_state, fn line, acc ->
-      case LogParser.parse_line(line) do
-        {:survey, data} -> AppState.add_survey(acc, data)
-        {:motherlode, data} -> AppState.add_pending_motherlode(acc, data.meters)
-        :survey_collected -> acc
-        nil -> acc
+  defp read_from_offset(log_path, offset) do
+    with {:ok, file} <- File.open(log_path, [:read]) do
+      :file.position(file, offset)
+      content = IO.read(file, :eof)
+      File.close(file)
+
+      case content do
+        data when is_binary(data) -> {:ok, data}
+        _ -> :error
       end
-    end)
+    end
   end
 
-  defp broadcast(session_id, app_state) do
-    Phoenix.PubSub.broadcast(
-      GorgonSurvey.PubSub,
-      "game_state:#{session_id}",
-      {:state_updated, app_state}
-    )
+  defp forward_events(content) do
+    content
+    |> String.split("\n", trim: true)
+    |> Enum.each(fn line ->
+      case LogParser.parse_line(line) do
+        {:survey, data} -> AppState.Server.add_survey(data)
+        {:motherlode, data} -> AppState.Server.add_pending_motherlode(data.meters)
+        _other -> :ok
+      end
+    end)
   end
 end

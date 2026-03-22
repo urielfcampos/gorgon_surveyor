@@ -34,8 +34,6 @@ if config_env() == :prod do
       url: [host: "localhost", port: 4840, scheme: "http"],
       http: [ip: {127, 0, 0, 1}],
       secret_key_base: "desktop-only-key-not-used-for-security-SnV2kGfPq8xylDRbHWjk0czMap4juETR"
-
-    config :gorgon_survey, :log_watcher_mode, :local
   else
     # The secret key base is used to sign/encrypt cookies and other secrets.
     # A default value is used in config/dev.exs and config/test.exs but you

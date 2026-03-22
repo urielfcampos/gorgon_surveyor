@@ -24,7 +24,7 @@ defmodule GorgonSurveyWeb.Router do
   scope "/api", GorgonSurveyWeb do
     pipe_through :api
 
-    post "/capture/:session_id", CaptureController, :create
+    post "/capture", CaptureController, :create
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

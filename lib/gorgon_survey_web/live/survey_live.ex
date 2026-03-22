@@ -64,8 +64,7 @@ defmodule GorgonSurveyWeb.SurveyLive do
        inv_zone: nil,
        inv_markers: [],
        locked: false,
-       auto_detect_on_survey:
-         ConfigStore.get("auto_detect_on_survey", "false") == "true",
+       auto_detect_on_survey: ConfigStore.get("auto_detect_on_survey", "false") == "true",
        sidebar_tab: "surveys",
        mode: :survey,
        collect_hotkey: ConfigStore.get("collect_hotkey", "")

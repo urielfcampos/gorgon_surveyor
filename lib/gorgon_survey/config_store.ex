@@ -39,5 +39,4 @@ defmodule GorgonSurvey.ConfigStore do
     save(config)
     config
   end
-
 end

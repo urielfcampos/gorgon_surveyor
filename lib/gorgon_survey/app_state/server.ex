@@ -134,7 +134,8 @@ defmodule GorgonSurvey.AppState.Server do
 
   @impl true
   def handle_cast({:complete_motherlode_reading, x_pct, y_pct}, state) do
-    {:noreply, update_and_broadcast(state, &AppState.complete_motherlode_reading(&1, x_pct, y_pct))}
+    {:noreply,
+     update_and_broadcast(state, &AppState.complete_motherlode_reading(&1, x_pct, y_pct))}
   end
 
   @impl true
